@@ -18,6 +18,7 @@
 
 任何一步失败，错误都返回到入口，由入口写入 stderr 并返回失败退出码。
 `--help` 或 `-h` 会在参数解析后提前输出帮助，不读取 stdin，也不需要配置。
+`--init-config` 创建用户配置模板并显示位置，保留已有文件，同样不要求模型凭据。
 无参数且没有 stdin 内容时也会成功显示帮助；显式空白查询则报错。
 
 当前增量只做单次命令查询，支持已知命令、子命令、自然语言任务与 `-q` / `--question` 附带问题。使用同步 HTTP 请求，让代码的阅读顺序就是执行顺序。
@@ -36,21 +37,25 @@
 
 `src/query.rs` 的 `Query` 分开保存命令查询与附带问题。
 
+`src/config.rs` 负责用户配置：
+
+1. `initialize()`：定位 XDG 文件，创建仅用户可读写的模板，保留已有文件。
+2. `load()`：读取用户 TOML，选择协议，再逐字段应用对应的环境变量覆盖。
+3. `setting()`：要求地址、密钥、模型非空，错误中只指出设置名称和配置位置。
+
 `src/model.rs` 集中处理模型服务相关的知识：
 
-1. `Config::from_env()`：从三个环境变量构造配置。
-2. `required_env()`：检查变量存在且不为空，错误中指出变量名。
-3. `ask()`：附加命令行领域与简洁回答指令，发送请求，把响应转成回答字符串。
-4. `ChatResponse`、`Choice`、`Message`：描述要从 JSON 中读取的字段。
+1. `ask()`：附加命令行领域与简洁回答指令，发送请求，把响应转成回答字符串。当前仅发 OpenAI 兼容请求，选中 Anthropic 时本地报错。
+2. `ChatResponse`、`Choice`、`Message`：描述要从 JSON 中读取的字段。
 
 主流程只需要知道这两个入口：
 
 ```rust
-Config::from_env()
+config::load()
 ask(&config, &query)
 ```
 
-配置的字段和 JSON 响应结构保持在模块内部。暂时没有需要多种实现切换的地方，
+配置解析由配置模块负责，JSON 响应结构保持在模型模块内部。暂时没有需要多种实现切换的地方，
 因此用具体函数即可。
 
 ## 读代码前要认识的 Rust 写法
@@ -107,7 +112,7 @@ fn ask(config: &Config, query: &Query) -> Result<String, Box<dyn Error>>
 ### `?`、`map_err` 和 `ok_or`
 
 ```rust
-let config = model::Config::from_env()?;
+let config = config::load()?;
 ```
 
 `?` 的含义是：如果成功，取出配置；如果失败，提前把错误返回给调用者。
@@ -125,7 +130,7 @@ let config = model::Config::from_env()?;
 ### 模块、结构体和 JSON
 
 `mod model;` 加载同目录的 `model.rs`。`pub` 允许其他模块使用某个定义。
-`struct Config` 把三个配置字段放在一起，`impl Config` 为它定义相关函数。
+`struct Config` 把协议类型与地址、密钥、模型字段放在一起。
 
 `json!` 构造请求内容，负责正确转义引号和换行：
 
@@ -161,6 +166,8 @@ let config = model::Config::from_env()?;
 | `ureq` | 同步发送 HTTP 请求、接收响应 |
 | `serde` | 把响应 JSON 转成 Rust 结构体 |
 | `serde_json` | 用 `json!` 构造请求 JSON |
+| `toml` | 读取用户配置 |
+| `tempfile` | 仅用于测试，隔离用户目录和工作目录 |
 | `mockito` | 仅用于测试，启动本地 HTTP 服务 |
 
 `[dev-dependencies]` 下的依赖不参与正常应用构建。`Cargo.lock` 记录解析后的具体版本，
@@ -187,6 +194,7 @@ let config = model::Config::from_env()?;
 `#[test]` 声明测试函数，`assert_eq!` 比较实际值和预先写定的期望值。
 `env!("CARGO_BIN_EXE_ruask")` 是 Cargo 提供的可执行文件路径。
 测试助手的 `env_clear()` 只清空子进程的环境，避免读到你的真实配置。
+配置测试另用临时 HOME、XDG 根和工作目录，验证文件权限、优先级及零请求失败行为。
 
 随后按下面的顺序推进。每行都是先增加一项失败测试，再补足对应实现：
 

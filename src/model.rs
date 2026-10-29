@@ -1,10 +1,10 @@
-use std::env;
 use std::error::Error;
 use std::time::Duration;
 
 use serde::Deserialize;
 use serde_json::json;
 
+use crate::config::{ApiType, Config};
 use crate::query::Query;
 
 const INSTRUCTIONS: &str = "You are ruask, a concise command-line reference assistant.
@@ -18,30 +18,6 @@ For a specific question (including one expressed in command_query), give one to 
 and a brief explanation. Each example must pair a purpose description with a command; do not pad with
 unrelated examples. Write concise tldr-style plain text, without Markdown code fences, JSON wrappers,
 or ANSI escape sequences. This is a single query; do not ask for an ongoing conversation.";
-
-pub struct Config {
-    base_url: String,
-    api_key: String,
-    model: String,
-}
-
-impl Config {
-    pub fn from_env() -> Result<Self, Box<dyn Error>> {
-        Ok(Self {
-            base_url: required_env("OPENAI_BASE_URL")?,
-            api_key: required_env("OPENAI_API_KEY")?,
-            model: required_env("OPENAI_MODEL")?,
-        })
-    }
-}
-
-fn required_env(name: &str) -> Result<String, Box<dyn Error>> {
-    let value = env::var(name).map_err(|_| format!("请设置环境变量 {name}"))?;
-    if value.trim().is_empty() {
-        return Err(format!("环境变量 {name} 不能为空").into());
-    }
-    Ok(value)
-}
 
 // 只描述我们需要读取的字段，服务返回的其他字段由 serde 忽略。
 #[derive(Deserialize)]
@@ -60,6 +36,9 @@ struct Message {
 }
 
 pub fn ask(config: &Config, query: &Query) -> Result<String, Box<dyn Error>> {
+    if matches!(config.api_type, ApiType::Anthropic) {
+        return Err("Anthropic 原生协议尚未接入；当前可选择已配置的 OpenAI 兼容接口".into());
+    }
     let url = format!("{}/chat/completions", config.base_url.trim_end_matches('/'));
     let body = json!({
         "model": config.model,

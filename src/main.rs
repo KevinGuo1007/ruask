@@ -1,3 +1,4 @@
+mod config;
 mod model;
 mod query;
 
@@ -15,13 +16,16 @@ const HELP: &str = "用法：ruask [命令或命令行任务...] [-q \"附带问
 目标命令自带选项时，请整体加引号或放在 -- 后。
 目前参数与 stdin 同时存在时以空行组合。
 
-必需的环境变量：
+用户配置：$XDG_CONFIG_HOME/ruask/config.toml（默认 $HOME/.config/ruask/config.toml）
+模型环境变量（可覆盖用户配置）：
   OPENAI_BASE_URL  接口基础地址（包含服务所需路径，例如 /v1）
   OPENAI_API_KEY   接口密钥
   OPENAI_MODEL     模型名称
+  RUASK_API_TYPE   openai / anthropic（当前支持 OpenAI 兼容请求）
 
 选项：
   -q, --question <字符串>  附带问题，也可独立使用
+  --init-config           创建用户配置模板，保留已有文件
   -h, --help               显示帮助";
 
 fn main() -> ExitCode {
@@ -39,11 +43,14 @@ fn run() -> Result<(), Box<dyn Error>> {
     if args.help {
         return write_output(HELP);
     }
+    if args.init_config {
+        return write_output(&config::initialize()?);
+    }
 
     let Some(query) = read_query(args)? else {
         return write_output(HELP);
     };
-    let config = model::Config::from_env()?;
+    let config = config::load()?;
     let answer = model::ask(&config, &query)?;
     write_output(&answer)
 }
@@ -63,6 +70,7 @@ struct Arguments {
     command: Vec<String>,
     question: Option<String>,
     help: bool,
+    init_config: bool,
 }
 
 impl Arguments {
@@ -76,11 +84,15 @@ impl Arguments {
                     break;
                 }
                 "-h" | "--help" => parsed.help = true,
+                "--init-config" => parsed.init_config = true,
                 "-q" | "--question" => {
                     let value = args
                         .next()
                         .filter(|value| {
-                            !matches!(value.as_str(), "--" | "-q" | "--question" | "-h" | "--help")
+                            !matches!(
+                                value.as_str(),
+                                "--" | "-q" | "--question" | "-h" | "--help" | "--init-config"
+                            )
                         })
                         .ok_or_else(|| {
                             format!("选项 {arg} 需要一个字符串值；例如 {arg} \"如何查看端口占用\"")
@@ -97,6 +109,9 @@ impl Arguments {
                 }
                 _ => parsed.command.push(arg),
             }
+        }
+        if parsed.init_config && (!parsed.command.is_empty() || parsed.question.is_some()) {
+            return Err("--init-config 需单独使用".into());
         }
         Ok(parsed)
     }

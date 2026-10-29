@@ -9,17 +9,13 @@
 ```sh
 cargo build --release
 
-# 换成你的服务地址、密钥和模型名。
-export OPENAI_BASE_URL="https://your-provider.example/v1"
-export OPENAI_API_KEY="你的密钥"
-export OPENAI_MODEL="你的模型名"
-
+./target/release/ruask --init-config
+# 编辑上一步显示的配置文件，填入模型地址、密钥和名称。
 ./target/release/ruask git commit
 ```
 
 `OPENAI_BASE_URL` 是基础地址，包含服务所需的路径前缀。程序在后面追加
-`/chat/completions`，地址末尾有无 `/` 都可以。三个环境变量均为必需，程序直接读取
-进程环境，不自动加载 `.env` 文件。
+`/chat/completions`，地址末尾有无 `/` 都可以。地址、密钥和模型名称合并后均为必需。
 
 支持 OpenAI 兼容的 Chat Completions 文本接口，发送一次请求，完整接收回答后输出。
 模型请求的总超时为 60 秒。
@@ -43,6 +39,54 @@ ruask -- git commit --amend
 ruask git status > usage.txt
 ruask --help
 ```
+
+## 用户配置
+
+macOS 和 Linux 均读取 `$XDG_CONFIG_HOME/ruask/config.toml`。
+`XDG_CONFIG_HOME` 未设置或为空时使用 `$HOME/.config/ruask/config.toml`；路径必须是绝对路径。
+切换工作目录、安装渠道或升级二进制不会改变这份配置。
+
+`ruask --init-config` 显示配置位置并创建模板，不要求模型凭据，也不发送请求。
+已有文件保持原样；新文件权限为 `0600`，仅当前用户可读写。编辑其中的 OpenAI 配置即可开始查询：
+
+```toml
+api_type = "openai"
+# language = "zh" # 可以保存偏好，当前版本暂不应用
+
+[openai]
+base_url = "https://your-provider.example/v1"
+model = "your-model"
+api_key = "YOUR_API_KEY"
+
+[anthropic]
+base_url = "https://your-anthropic-provider.example/v1"
+model = "your-model"
+api_key = "YOUR_API_KEY"
+```
+
+协议优先级为 `RUASK_API_TYPE` → 文件 `api_type` → `openai`。
+`openai` 表示 OpenAI 兼容协议，不根据模型名或服务域名猜测协议。
+目前可保存、选择和校验 Anthropic 独立配置；选中它会在本地提示尚未接入原生请求。
+
+所选协议按字段合并环境变量与文件配置，环境变量优先：
+
+| 协议 | 环境变量 |
+| --- | --- |
+| `openai` | `OPENAI_BASE_URL`、`OPENAI_API_KEY`、`OPENAI_MODEL` |
+| `anthropic` | `ANTHROPIC_BASE_URL`、`ANTHROPIC_API_KEY`、`ANTHROPIC_MODEL` |
+
+仅使用所选协议的字段，不向另一组借用。显式空白环境值报错，不回退到文件。
+没有用户文件时，原有的三个 OpenAI 环境变量仍可独立使用：
+
+```sh
+export OPENAI_BASE_URL="https://your-provider.example/v1"
+export OPENAI_API_KEY="你的密钥"
+export OPENAI_MODEL="你的模型名"
+ruask cargo
+```
+
+程序不自动加载当前目录或父目录的 `.env` 或项目配置，也不修改 shell 启动文件。
+无效 TOML 和缺失配置在请求前报错，错误不显示凭据或配置原文。
 
 ## 输入和输出约定
 
@@ -68,7 +112,7 @@ ruask --help
 `cat error.log | ruask cargo build` 用一个空行组合位置参数与原文。
 有效内容的空格和换行会保留。管道输出上下文的独立语义与输入上限由后续增量实现。
 
-- stdout 只包含回答，并在末尾追加一个换行；`-h` / `--help` 输出帮助。
+- stdout 只包含回答，并在末尾追加一个换行；帮助与配置初始化分别输出帮助和配置位置。
 - 无参数且没有 stdin 内容时显示简短帮助，成功退出。帮助与无效输入不需要模型凭据，也不发请求。
 - stderr 用于错误信息。
 - 正常结束返回 `0`，输入、配置或模型请求失败返回非零退出码。
@@ -80,9 +124,11 @@ ruask --help
 src/
   main.rs          参数、stdin、执行顺序、输出和退出码
   query.rs         命令查询与附带问题的数据结构
-  model.rs         环境变量配置、模型请求和回答解析
+  config.rs        用户配置定位、初始化、环境覆盖与字段校验
+  model.rs         模型请求和回答解析
 tests/
   cli.rs           启动真实 CLI，用本地 HTTP 服务代替模型
+  config.rs        隔离用户目录，验证配置文件与真实查询
 docs/
   learning.md      Rust 前置知识、阅读顺序和 TDD 开发过程
 ```
