@@ -1,4 +1,4 @@
-# 从第一条问答理解 ruask
+# 从第一条命令查询理解 ruask
 
 ## 先理解程序要做什么
 
@@ -7,7 +7,7 @@
 ```text
 命令行参数 + stdin
         ↓
-    组成一个提问
+    组成命令查询与附带问题
         ↓
     读取模型配置
         ↓
@@ -17,33 +17,37 @@
 ```
 
 任何一步失败，错误都返回到入口，由入口写入 stderr 并返回失败退出码。
-单独使用 `--help` 或 `-h` 会提前输出帮助，不读取 stdin，也不需要配置。
+`--help` 或 `-h` 会在参数解析后提前输出帮助，不读取 stdin，也不需要配置。
+无参数且没有 stdin 内容时也会成功显示帮助；显式空白查询则报错。
 
-第一版只做单次文本问答。使用同步 HTTP 请求，让代码的阅读顺序就是执行顺序。
+当前增量只做单次命令查询，支持已知命令、子命令、自然语言任务与 `-q` / `--question` 附带问题。使用同步 HTTP 请求，让代码的阅读顺序就是执行顺序。
 文件读取、重定向、文本筛选交给 Shell 提供的工具完成。
 
-## 为什么只有两个源码文件
+## 源码如何分工
 
 `src/main.rs` 处理 Shell 能观察到的行为，包括输入、输出、错误和退出码。
 阅读顺序是：
 
 1. `main()`：成功返回 `0`，失败显示错误并返回非零值。
-2. `run()`：查看帮助，或依次读取提问、读取配置、调用模型、输出回答。
-3. `read_prompt()`：读取参数和管道，组成文本，拒绝空白输入。
-4. `write_output()`：输出文本，处理下游已经关闭的情况。
+2. `run()`：解析参数、查看帮助，或依次读取查询、读取配置、调用模型、输出回答。
+3. `Arguments::parse()`：识别问题选项与 `--` 分隔符，拒绝未知选项与缺少的值。
+4. `read_query()`：拒绝显式空白查询，读取管道，构造查询或表示应显示帮助的 `None`。
+5. `write_output()`：输出文本，处理下游已经关闭的情况。
+
+`src/query.rs` 的 `Query` 分开保存命令查询与附带问题。
 
 `src/model.rs` 集中处理模型服务相关的知识：
 
 1. `Config::from_env()`：从三个环境变量构造配置。
 2. `required_env()`：检查变量存在且不为空，错误中指出变量名。
-3. `ask()`：发送请求，把响应转成回答字符串。
+3. `ask()`：附加命令行领域与简洁回答指令，发送请求，把响应转成回答字符串。
 4. `ChatResponse`、`Choice`、`Message`：描述要从 JSON 中读取的字段。
 
 主流程只需要知道这两个入口：
 
 ```rust
 Config::from_env()
-ask(&config, &prompt)
+ask(&config, &query)
 ```
 
 配置的字段和 JSON 响应结构保持在模块内部。暂时没有需要多种实现切换的地方，
@@ -57,7 +61,7 @@ ask(&config, &prompt)
 `&str` 是对文本的借用；`&Config` 是对配置的借用。
 
 ```rust
-let answer = model::ask(&config, &prompt)?;
+let answer = model::ask(&config, &query)?;
 ```
 
 这里没有把配置和提问的所有权交给 `ask()`。它在调用期间读取它们，返回一个自己
@@ -75,12 +79,12 @@ stdin.read_to_string(&mut input)?;
 ### `Vec<String>`、切片和 `join`
 
 `Vec<String>` 是一组可变长度的字符串。`std::env::args()` 包含程序名，
-所以 `skip(1)` 跳过它，`collect()` 把剩余参数收集成列表。
+所以 `skip(1)` 跳过它；解析器用 `next()` 逐个读取剩余参数。
 
-`read_prompt(args: &[String])` 中的 `&[String]` 是借用整个列表的一段切片。
-`args.join(" ")` 用空格连接参数，生成一个新的 `String`。
+`Arguments` 将位置参数保存在 `Vec<String>` 中，问题选项单独保存。
+`args.command.join(" ")` 用空格连接位置参数，生成一个新的 `String`。
 
-当指令和管道内容都有有效文本时，`format!("{instruction}\n\n{input}")`
+当前命令查询和管道内容都有有效文本时，`format!("{command}\n\n{input}")`
 生成组合后的提问。`trim()` 只用于判空，原文仍保留。
 
 ### `Option` 和 `Result` 有什么区别
@@ -91,7 +95,7 @@ stdin.read_to_string(&mut input)?;
 `Result<T, E>` 表示“成功 `Ok(T)`”或“失败 `Err(E)`”，失败时还携带原因。
 
 ```rust
-fn ask(config: &Config, prompt: &str) -> Result<String, Box<dyn Error>>
+fn ask(config: &Config, query: &Query) -> Result<String, Box<dyn Error>>
 ```
 
 这行可以先读成：“读取配置和提问；成功返回回答文本，失败返回错误。”
@@ -128,7 +132,10 @@ let config = model::Config::from_env()?;
 ```json
 {
   "model": "你配置的模型名",
-  "messages": [{"role": "user", "content": "你输入的文本"}]
+  "messages": [
+    {"role": "system", "content": "命令行用途与简洁纯文本回答指令"},
+    {"role": "user", "content": "{\"command_query\":\"git commit\",\"question\":null}"}
+  ]
 }
 ```
 
@@ -145,7 +152,7 @@ let config = model::Config::from_env()?;
 `writeln!` 写文本并追加换行，返回 `Result`。如果下游已经关闭，会产生 Broken pipe。
 本项目把这种情况当作正常结束；其他写入失败仍然向上返回。
 
-## TDD：每次从一个使用场景开始
+## 最初 CLI 的 TDD 过程记录
 
 先看 `Cargo.toml` 中各个依赖的用途：
 
@@ -163,7 +170,9 @@ let config = model::Config::from_env()?;
 退出码是结果。模型服务是外部依赖，由本地 HTTP 服务替代。
 
 因此测试会经过真实的输入读取、配置读取、HTTP 请求、JSON 解析和输出。
-测试不会直接调用 `read_prompt()` 或断言私有函数之间的调用顺序。
+下表记录初始通用文本 CLI 的开发过程；当前已收敛为命令查询，空调用成功显示帮助，
+旧的通用问答断言已替换，具体契约以 `tests/cli.rs` 为准。
+测试不会直接调用 `read_query()` 或断言私有函数之间的调用顺序。
 
 第一轮可以这样描述：
 
@@ -216,7 +225,7 @@ cargo test
 不要先写完一大批测试，再一次性实现全部功能。每一轮的结果会帮助你决定下一步。
 这次按照指定的 TDD 规则，没有额外加入重构阶段；后续需要调整结构时单独评审。
 
-建议你第一次阅读时，先跑 `cargo test --test cli question_is_sent_to_model_and_answer_is_written_to_stdout`，
+建议你第一次阅读时，先跑 `cargo test --test cli command_query_is_sent_to_model_and_answer_is_written_to_stdout`，
 读懂这一项，再对照 `run()` 和 `ask()`。测试中的固定回答来自本地服务；实际模型效果
 需要你配置真实服务后自行体验。
 
