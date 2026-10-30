@@ -1,5 +1,6 @@
 mod config;
 mod model;
+mod output;
 mod query;
 
 use std::error::Error;
@@ -16,6 +17,7 @@ const HELP: &str = "用法：ruask [命令或命令行任务...] [-q \"附带问
 查询命令、子命令或自然语言命令行任务，输出简短的纯文本速查结果。
 例如：ruask git commit -q \"如何修改上一次提交的信息\"
 目标命令自带选项时，请整体加引号或放在 -- 后。
+默认流式接收，完整行到达即显示；断流或截断会保留已显示内容并报不完整。
 stdin 作为原始输出上下文，读到结束后解读含义、明显错误及相关命令。
 管道上限为 65,536 字节（64 KiB）；超限请先筛选或使用 tail，不会截断或分段。
 
@@ -36,6 +38,13 @@ stdin 作为原始输出上下文，读到结束后解读含义、明显错误�
 fn main() -> ExitCode {
     match run() {
         Ok(()) => ExitCode::SUCCESS,
+        Err(error)
+            if error
+                .downcast_ref::<io::Error>()
+                .is_some_and(|error| error.kind() == io::ErrorKind::BrokenPipe) =>
+        {
+            ExitCode::SUCCESS
+        }
         Err(error) => {
             eprintln!("ruask: {error}");
             ExitCode::FAILURE
@@ -67,8 +76,8 @@ fn run() -> Result<(), Box<dyn Error>> {
         Some(platform) => platform,
         None => Platform::host()?,
     };
-    let answer = model::ask(&config, &query, language, platform)?;
-    write_output(&answer)
+    let mut output = output::Lines::new(io::stdout().lock());
+    model::ask(&config, &query, language, platform, &mut output)
 }
 
 fn write_output(text: &str) -> Result<(), Box<dyn Error>> {

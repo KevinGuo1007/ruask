@@ -13,9 +13,9 @@
         ↓
     选择结果语言与目标平台
         ↓
-    请求模型并解析回答
+    请求模型并逐步解析 SSE 正文
         ↓
-    把回答写入 stdout
+    完整行写入 stdout 并刷新
 ```
 
 任何一步失败，错误都返回到入口，由入口写入 stderr 并返回失败退出码。
@@ -35,7 +35,8 @@
 2. `run()`：解析参数、查看帮助，或依次读取查询、读取配置、调用模型、输出回答。
 3. `Arguments::parse()`：识别问题、语言、平台选项与 `--` 分隔符，拒绝未知选项与缺少的值。
 4. `read_query()`：拒绝显式空白查询，读取最多 65,537 字节以检查 65,536 字节上限，构造查询或表示应显示帮助的 `None`。
-5. `write_output()`：输出文本，处理下游已经关闭的情况。
+5. `write_output()`：输出帮助和初始化位置；模型正文交给 `output::Lines`。
+6. `main()` 同样将模型输出的 Broken pipe 视为正常结束。
 
 `src/query.rs` 的 `Query` 分开保存命令查询、附带问题与原始输出上下文；`Language` 和 `Platform`
 限定首版支持的选择，`Language::from_locale()` 按 LANG/LANGUAGE 规则选择语言。
@@ -49,18 +50,20 @@
 
 `src/model.rs` 集中处理模型服务相关的知识：
 
-1. `ask()`：附加命令行领域与简洁回答指令，发送请求，把响应转成回答字符串。当前仅发 OpenAI 兼容请求，选中 Anthropic 时本地报错。
-2. `ChatResponse`、`Choice`、`Message`：描述要从 JSON 中读取的字段。
+1. `ask()`：附加命令行领域与简洁回答指令，发送 OpenAI 流式请求，选中 Anthropic 时本地报错。
+2. SSE 按空行分隔事件，`data` 中的 JSON 只提取正文增量；要求 `stop` 完成原因与 `[DONE]`，异常 EOF 或截断返回不完整错误。
+
+`src/output.rs` 的 `Lines` 接收正文片段，只缓冲尚未完成的行；每行写出后立即刷新。
+正常结束才输出无换行尾行；失败时未完成的尾行不冒充完整内容。
 
 主流程只需要知道这两个入口：
 
 ```rust
 config::load()
-ask(&config, &query, language, platform)
+ask(&config, &query, language, platform, &mut output)
 ```
 
-配置解析由配置模块负责，JSON 响应结构保持在模型模块内部。暂时没有需要多种实现切换的地方，
-因此用具体函数即可。
+配置解析由配置模块负责，协议数据保持在模型模块内部，正文的完整行展示由输出模块负责。
 
 ## 读代码前要认识的 Rust 写法
 
@@ -70,11 +73,11 @@ ask(&config, &query, language, platform)
 `&str` 是对文本的借用；`&Config` 是对配置的借用。
 
 ```rust
-let answer = model::ask(&config, &query, language, platform)?;
+model::ask(&config, &query, language, platform, &mut output)?;
 ```
 
-这里没有把配置和提问的所有权交给 `ask()`。它在调用期间读取它们，返回一个自己
-拥有的 `String`。`&String` 可以自动转换为函数需要的 `&str`。
+这里没有把配置和提问的所有权交给 `ask()`。它借用配置和查询，同时可变借用输出器，
+让解析到的正文逐步进入输出器。`&String` 可以自动转换为函数需要的 `&str`。
 
 ```rust
 let mut bytes = Vec::new();
@@ -105,10 +108,10 @@ stdin.take(MAX_INPUT_BYTES + 1).read_to_end(&mut bytes)?;
 `Result<T, E>` 表示“成功 `Ok(T)`”或“失败 `Err(E)`”，失败时还携带原因。
 
 ```rust
-fn ask(config: &Config, query: &Query, language: Language, platform: Platform) -> Result<String, Box<dyn Error>>
+fn ask(config: &Config, query: &Query, language: Language, platform: Platform, output: &mut Lines<impl Write>) -> Result<(), Box<dyn Error>>
 ```
 
-这行可以先读成：“读取配置和提问；成功返回回答文本，失败返回错误。”
+这行可以先读成：“读取配置和提问，逐步交付正文；成功返回空值，失败返回错误。”
 `Box<dyn Error>` 是能容纳不同错误类型的统一错误容器。现在知道它可以承接网络、
 输入输出等错误就够了，之后再深入 `Box`、trait 和动态分发。
 
@@ -149,10 +152,9 @@ let config = config::load()?;
 }
 ```
 
-`#[derive(Deserialize)]` 让 serde 为结构体生成从 JSON 读取数据的代码。
-响应中我们只关心 `choices[0].message.content`；额外字段会被忽略。
-`into_iter().next()` 取得第一个回答，并接收它的所有权；如果没有回答或内容为空，
-程序返回错误。
+配置中的 `#[derive(Deserialize)]` 让 serde 为结构体生成从 TOML 读取数据的代码。
+流式响应以 SSE `data:` 事件交付 JSON，正文来自第零个 choice 的 `delta.content`。
+角色、用量、工具与思考数据不作为正文；没有有效文本或缺少正常完成信号时返回错误。
 
 ### `Write` 和 Broken pipe
 
@@ -169,8 +171,8 @@ let config = config::load()?;
 | 依赖 | 用途 |
 | --- | --- |
 | `ureq` | 同步发送 HTTP 请求、接收响应 |
-| `serde` | 把响应 JSON 转成 Rust 结构体 |
-| `serde_json` | 用 `json!` 构造请求 JSON |
+| `serde` | 读取配置结构、序列化语言与平台 |
+| `serde_json` | 构造请求 JSON、解析 SSE 事件 JSON |
 | `toml` | 读取用户配置 |
 | `tempfile` | 仅用于测试，隔离用户目录和工作目录 |
 | `mockito` | 仅用于测试，启动本地 HTTP 服务 |
@@ -192,7 +194,7 @@ let config = config::load()?;
 
 测试有三个部分：
 
-1. 准备：本地服务只接受指定的问题、模型名和认证头，返回固定 JSON。
+1. 准备：本地服务只接受指定的问题、模型名和认证头，返回固定的 SSE 正文事件和完成信号。
 2. 执行：通过 `Command` 启动真正的 ruask。
 3. 断言：stdout 恰好是固定回答，stderr 为空，退出成功。
 
@@ -242,11 +244,21 @@ cargo test
 读懂这一项，再对照 `run()` 和 `ask()`。测试中的固定回答来自本地服务；实际模型效果
 需要你配置真实服务后自行体验。
 
+## 流式展示的验证
+
+`tests/streaming.rs` 的首行测试让服务先发送可形成完整行的字节片段，随后等待测试读到
+CLI stdout 首行才继续发送尾部和完成信号。这个握手证明客户端没有等待整份回答。
+逐字节写入覆盖 Unicode 与 SSE 字段边界；补充场景检查空事件、CRLF、多行 data、
+截断、异常 EOF、流内错误，以及下游关闭后不再等待服务完成。
+这些测试只证明客户端契约，不证明真实模型质量或延迟。
+
 ## 官方参考
 
 - [Rust：所有权](https://doc.rust-lang.org/book/ch04-01-what-is-ownership.html)
 - [Rust：引用与借用](https://doc.rust-lang.org/book/ch04-02-references-and-borrowing.html)
 - [Rust：使用 Result 处理错误](https://doc.rust-lang.org/book/ch09-02-recoverable-errors-with-result.html)
 - [Cargo：测试与可执行文件路径](https://doc.rust-lang.org/cargo/commands/cargo-test.html)
+- [OpenAI Chat Completions 流式事件](https://developers.openai.com/api/reference/resources/chat/subresources/completions/streaming-events)
+- [OpenAI Chat Completions 请求](https://developers.openai.com/api/reference/resources/chat/subresources/completions/methods/create)
 - [ureq：同步 HTTP 与 JSON](https://docs.rs/ureq/latest/ureq/)
 - [mockito：本地 HTTP 测试服务](https://docs.rs/mockito/latest/mockito/)

@@ -6,7 +6,7 @@ use mockito::{Matcher, Server};
 use tempfile::TempDir;
 
 mod support;
-use support::request_query;
+use support::{openai_stream, request_query};
 
 struct Workspace {
     root: TempDir,
@@ -65,7 +65,7 @@ fn language_uses_cli_then_saved_preference_before_locale() {
                 let query = request_query(request);
                 query["language"] == expected
             })
-            .with_body(r#"{"choices":[{"message":{"content":"git status"}}]}"#)
+            .with_body(openai_stream("git status"))
             .expect(1)
             .create();
         let output = workspace
@@ -205,7 +205,7 @@ api_key = "other-key"
         .match_body(Matcher::PartialJson(
             serde_json::json!({"model": "file-model"}),
         ))
-        .with_body(r#"{"choices":[{"message":{"content":"查看状态：git status"}}]}"#)
+        .with_body(openai_stream("查看状态：git status"))
         .expect(2)
         .create();
     for directory in ["work", "other"] {
@@ -309,7 +309,7 @@ model = "other-model"
                 .match_body(Matcher::PartialJson(
                     serde_json::json!({"model": expected_model}),
                 ))
-                .with_body(r#"{"choices":[{"message":{"content":"git status"}}]}"#)
+                .with_body(openai_stream("git status"))
                 .expect(1)
                 .create();
             let mut command = workspace.command();
@@ -449,7 +449,7 @@ fn environment_only_configuration_does_not_create_user_files_or_infer_protocol()
         .match_body(Matcher::PartialJson(
             serde_json::json!({"model": "claude-compatible-model"}),
         ))
-        .with_body(r#"{"choices":[{"message":{"content":"git status"}}]}"#)
+        .with_body(openai_stream("git status"))
         .expect(1)
         .create();
     let output = workspace

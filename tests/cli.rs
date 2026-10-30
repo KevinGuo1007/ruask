@@ -5,7 +5,7 @@ use mockito::{Matcher, Server};
 use serde_json::{Value, json};
 
 mod support;
-use support::request_query;
+use support::{openai_stream, request_query};
 
 fn ruask(base_url: &str) -> Command {
     let mut command = Command::new(env!("CARGO_BIN_EXE_ruask"));
@@ -30,7 +30,7 @@ fn query_request(
         let messages = body["messages"].as_array().unwrap();
         body["model"] == "test-model"
             && body.get("tools").is_none()
-            && body["stream"] != true
+            && body["stream"] == true
             && messages.len() == 2
             && messages[0]["role"] == "system"
             && messages[1]["role"] == "user"
@@ -50,8 +50,8 @@ fn command_query_is_sent_to_model_and_answer_is_written_to_stdout() {
         .mock("POST", "/v1/chat/completions")
         .match_header("authorization", "Bearer test-key")
         .match_request(query_request(Some("cargo"), None))
-        .with_header("content-type", "application/json")
-        .with_body(r#"{"choices":[{"message":{"content":"构建项目：\n  cargo build"}}]}"#)
+        .with_header("content-type", "text/event-stream")
+        .with_body(openai_stream("构建项目：\n  cargo build"))
         .create();
 
     let output = ruask(&format!("{}/v1", server.url()))
@@ -105,7 +105,7 @@ fn piped_text_is_preserved() {
                 .iter()
                 .all(|rule| instructions.contains(rule))
         })
-        .with_body(r#"{"choices":[{"message":{"content":"构建项目：\n  cargo build"}}]}"#)
+        .with_body(openai_stream("构建项目：\n  cargo build"))
         .create();
 
     let output = run_with_stdin(
@@ -134,7 +134,7 @@ fn command_question_and_piped_output_keep_distinct_meanings() {
                     && query["question"].as_str() == question_flag.map(|_| "为什么失败？")
                     && query["output_context"] == "  第一行\t错误\n\n第二行 🦀\n  "
             })
-            .with_body(r#"{"choices":[{"message":{"content":"请检查编译错误。"}}]}"#)
+            .with_body(openai_stream("请检查编译错误。"))
             .expect(1)
             .create();
 
@@ -276,7 +276,7 @@ fn base_url_preserves_custom_path_and_accepts_trailing_slash() {
     let mut server = Server::new();
     let response = server
         .mock("POST", "/compatible/v1/chat/completions")
-        .with_body(r#"{"choices":[{"message":{"content":"查看状态：git status"}}]}"#)
+        .with_body(openai_stream("查看状态：git status"))
         .create();
     let output = ruask(&format!("{}/compatible/v1/", server.url()))
         .arg("git")
@@ -297,9 +297,7 @@ fn all_command_arguments_are_preserved() {
     let response = server
         .mock("POST", "/v1/chat/completions")
         .match_request(query_request(Some("git remote add"), None))
-        .with_body(
-            r#"{"choices":[{"message":{"content":"Add a remote: git remote add origin URL"}}]}"#,
-        )
+        .with_body(openai_stream("Add a remote: git remote add origin URL"))
         .create();
     let output = ruask(&format!("{}/v1", server.url()))
         .args(["git", "remote", "add"])
@@ -349,7 +347,7 @@ fn closed_downstream_output_ends_without_error() {
     let mut server = Server::new();
     let response = server
         .mock("POST", "/v1/chat/completions")
-        .with_body(r#"{"choices":[{"message":{"content":"查看状态：git status"}}]}"#)
+        .with_body(openai_stream("查看状态：git status"))
         .create();
 
     // 在启动 CLI 前关闭读取端，稳定地模拟下游不再接收输出。
@@ -422,7 +420,7 @@ fn query_and_question_semantics_are_preserved() {
         let response = server
             .mock("POST", "/v1/chat/completions")
             .match_request(query_request(query, question))
-            .with_body(r#"{"choices":[{"message":{"content":"用途说明\n  example command"}}]}"#)
+            .with_body(openai_stream("用途说明\n  example command"))
             .expect(1)
             .create();
         let output = ruask(&format!("{}/v1", server.url()))
@@ -480,7 +478,7 @@ fn instructions_define_the_command_line_reference_contract() {
             .all(|rule| system.contains(rule))
                 && query_request(Some("git"), None)(request)
         })
-        .with_body(r#"{"choices":[{"message":{"content":"Git manages version history."}}]}"#)
+        .with_body(openai_stream("Git manages version history."))
         .expect(1)
         .create();
     let output = ruask(&format!("{}/v1", server.url()))
@@ -558,7 +556,7 @@ fn repeated_queries_each_make_one_fresh_request() {
     let response = server
         .mock("POST", "/v1/chat/completions")
         .match_request(query_request(Some("git"), None))
-        .with_body(r#"{"choices":[{"message":{"content":"git status"}}]}"#)
+        .with_body(openai_stream("git status"))
         .expect(2)
         .create();
     for _ in 0..2 {
@@ -586,7 +584,7 @@ fn explicit_language_is_sent_to_the_model_and_fixed_answers_are_displayed() {
                     && query["command_query"] == "git status"
                     && query["question"] == "show changes"
             })
-            .with_body(json!({"choices": [{"message": {"content": answer}}]}).to_string())
+            .with_body(openai_stream(answer))
             .expect(1)
             .create();
         let output = ruask(&format!("{}/v1", server.url()))
@@ -627,7 +625,7 @@ fn automatic_language_follows_locale_candidates_and_falls_back_to_english() {
                 let query = request_query(request);
                 query["language"] == expected
             })
-            .with_body(r#"{"choices":[{"message":{"content":"git status"}}]}"#)
+            .with_body(openai_stream("git status"))
             .expect(1)
             .create();
         let mut command = ruask(&format!("{}/v1", server.url()));
@@ -673,7 +671,7 @@ fn platform_defaults_to_host_and_accepts_overrides_and_macos_alias() {
                     && query["language"] == "zh"
                     && query["command_query"] == "find a process using port 8080"
             })
-            .with_body(r#"{"choices":[{"message":{"content":"固定回答"}}]}"#)
+            .with_body(openai_stream("固定回答"))
             .expect(1)
             .create();
         let output = ruask(&format!("{}/v1", server.url()))
@@ -767,7 +765,7 @@ fn questions_starting_with_target_options_are_preserved() {
             let response = server
                 .mock("POST", "/v1/chat/completions")
                 .match_request(query_request(Some("git commit"), Some(question)))
-                .with_body(r#"{"choices":[{"message":{"content":"修改最后一次提交：git commit --amend"}}]}"#)
+                .with_body(openai_stream("修改最后一次提交：git commit --amend"))
                 .expect(1)
                 .create();
             let output = ruask(&format!("{}/v1", server.url()))
@@ -822,7 +820,7 @@ fn pipe_at_the_exact_byte_limit_is_sent_without_truncation() {
                     && query["output_context"] == expected
                     && query["question"].is_null()
             })
-            .with_body(r#"{"choices":[{"message":{"content":"Output explained."}}]}"#)
+            .with_body(openai_stream("Output explained."))
             .expect(1)
             .create();
         let output = run_with_stdin(ruask(&format!("{}/v1", server.url())), &input);
@@ -846,7 +844,7 @@ fn finite_pipe_waits_for_eof_then_sends_one_output_interpretation_request() {
             sent.send(request_query(request)).unwrap();
             true
         })
-        .with_body(r#"{"choices":[{"message":{"content":"Use cargo check to inspect errors."}}]}"#)
+        .with_body(openai_stream("Use cargo check to inspect errors."))
         .expect(1)
         .create();
     let mut child = ruask(&format!("{}/v1", server.url()))

@@ -1,10 +1,11 @@
 use std::error::Error;
+use std::io::{BufRead, BufReader};
 use std::time::Duration;
 
-use serde::Deserialize;
-use serde_json::json;
+use serde_json::{Value, json};
 
 use crate::config::{ApiType, Config};
+use crate::output::Lines;
 use crate::query::{Language, Platform, Query};
 
 const INSTRUCTIONS: &str = "You are ruask, a concise command-line reference assistant.
@@ -28,34 +29,20 @@ and a brief explanation. Each example must pair a purpose description with a com
 unrelated examples. Write concise tldr-style plain text, without Markdown code fences, JSON wrappers,
 or ANSI escape sequences. This is a single query; do not ask for an ongoing conversation.";
 
-// 只描述我们需要读取的字段，服务返回的其他字段由 serde 忽略。
-#[derive(Deserialize)]
-struct ChatResponse {
-    choices: Vec<Choice>,
-}
-
-#[derive(Deserialize)]
-struct Choice {
-    message: Message,
-}
-
-#[derive(Deserialize)]
-struct Message {
-    content: String,
-}
-
 pub fn ask(
     config: &Config,
     query: &Query,
     language: Language,
     platform: Platform,
-) -> Result<String, Box<dyn Error>> {
+    output: &mut Lines<impl std::io::Write>,
+) -> Result<(), Box<dyn Error>> {
     if matches!(config.api_type, ApiType::Anthropic) {
         return Err("Anthropic 原生协议尚未接入；当前可选择已配置的 OpenAI 兼容接口".into());
     }
     let url = format!("{}/chat/completions", config.base_url.trim_end_matches('/'));
     let body = json!({
         "model": config.model,
+        "stream": true,
         "messages": [
             {"role": "system", "content": INSTRUCTIONS},
             {"role": "user", "content": json!({
@@ -68,24 +55,61 @@ pub fn ask(
         ]
     });
 
-    let response: ChatResponse = ureq::post(&url)
+    let mut response = ureq::post(&url)
         .config()
         .timeout_global(Some(Duration::from_secs(60)))
         .build()
         .header("Authorization", format!("Bearer {}", config.api_key))
         .send_json(&body)
-        .map_err(|error| format!("模型请求失败：{error}"))?
-        .body_mut()
-        .read_json()
-        .map_err(|error| format!("无法读取模型响应：{error}"))?;
-
-    let choice = response
-        .choices
-        .into_iter()
-        .next()
-        .ok_or("模型响应中没有回答")?;
-    if choice.message.content.trim().is_empty() {
-        return Err("模型响应中没有文本回答".into());
+        .map_err(|error| format!("模型请求失败：{error}"))?;
+    let mut reader = BufReader::new(response.body_mut().as_reader());
+    let mut data = String::new();
+    let mut stopped = false;
+    loop {
+        let mut line = String::new();
+        if reader
+            .read_line(&mut line)
+            .map_err(|error| format!("模型响应不完整：读取流失败（{error}）"))?
+            == 0
+        {
+            return Err("模型响应不完整：流意外结束".into());
+        }
+        let line = line.trim_end_matches(['\r', '\n']);
+        if line.is_empty() {
+            if data.is_empty() {
+                continue;
+            }
+            if data == "[DONE]" {
+                if !stopped {
+                    return Err("模型响应不完整：缺少正常完成原因".into());
+                }
+                return output.finish().map_err(Into::into);
+            }
+            let chunk: Value =
+                serde_json::from_str(&data).map_err(|_| "模型响应不完整：无效流式事件")?;
+            if chunk.get("error").is_some() {
+                return Err("模型响应不完整：流内错误".into());
+            }
+            for choice in chunk["choices"].as_array().into_iter().flatten() {
+                if choice["index"] != 0 {
+                    continue;
+                }
+                if let Some(text) = choice["delta"]["content"].as_str() {
+                    output.push(text)?;
+                }
+                if let Some(reason) = choice["finish_reason"].as_str() {
+                    if reason != "stop" {
+                        return Err(format!("模型响应不完整：结束原因 {reason}").into());
+                    }
+                    stopped = true;
+                }
+            }
+            data.clear();
+        } else if let Some(value) = line.strip_prefix("data:") {
+            if !data.is_empty() {
+                data.push('\n');
+            }
+            data.push_str(value.strip_prefix(' ').unwrap_or(value));
+        }
     }
-    Ok(choice.message.content)
 }
