@@ -23,6 +23,11 @@ stdin 作为原始输出上下文，读到结束后解读含义、明显错误�
 管道上限为 65,536 字节（64 KiB）；超限请先筛选或使用 tail，不会截断或分段。
 
 用户配置：$XDG_CONFIG_HOME/ruask/config.toml（默认 $HOME/.config/ruask/config.toml）
+--init-config 创建 0600 模板并显示位置，保留已有文件；不读取项目 .env。
+协议优先级：RUASK_API_TYPE → 文件 api_type → openai。
+所选协议的环境变量逐字段覆盖文件，不借用另一组的地址、模型或密钥。
+基础地址保留路径前缀与尾斜线兼容性，分别追加 /chat/completions 或 /messages，不自动补 /v1。
+语言优先级：-L / --language → 文件 language → locale → 英文。
 模型环境变量（可覆盖用户配置）：
   OPENAI_BASE_URL  接口基础地址（包含服务所需路径，例如 /v1）
   OPENAI_API_KEY   接口密钥
@@ -38,7 +43,11 @@ stdin 作为原始输出上下文，读到结束后解读含义、明显错误�
   --color <auto|always|never>  颜色：auto 按 stdout 是否终端判断；NO_COLOR 非空时关闭自动颜色
                             always 显式启用（覆盖 NO_COLOR），never 始终纯文本
   --init-config           创建用户配置模板，保留已有文件
-  -h, --help               显示帮助";
+  -h, --help               显示帮助
+
+首版支持 macOS / Linux、英文和简体中文，仅用于命令速查与输出解读。
+每次有效查询都在线请求，不缓存回答、不执行建议命令、不保留对话历史。
+stdout 输出回答（或明确请求的帮助/配置位置），stderr 输出错误和兼容提醒。";
 
 fn main() -> ExitCode {
     match run() {

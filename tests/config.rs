@@ -539,3 +539,298 @@ fn configuration_roots_must_be_absolute_and_initialization_needs_a_user_location
     assert!(!output.status.success(), "{output:?}");
     assert!(String::from_utf8_lossy(&output.stderr).contains("HOME 或 XDG_CONFIG_HOME"));
 }
+
+#[test]
+fn help_explains_complete_setup_and_runtime_contract_without_credentials() {
+    let workspace = Workspace::new();
+    let mut server = Server::new();
+    let requests = server.mock("POST", Matcher::Any).expect(0).create();
+    let output = workspace
+        .command()
+        .arg("--help")
+        .env("OPENAI_BASE_URL", server.url())
+        .env("ANTHROPIC_BASE_URL", server.url())
+        .output()
+        .unwrap();
+    assert_success(&output);
+    let help = String::from_utf8(output.stdout).unwrap();
+    for contract in [
+        "--init-config",
+        "保留已有文件",
+        "0600",
+        "RUASK_API_TYPE → 文件 api_type → openai",
+        "所选协议的环境变量逐字段覆盖文件",
+        "不借用另一组",
+        "/chat/completions",
+        "/messages",
+        "不自动补 /v1",
+        "语言优先级",
+        "文件 language",
+        "locale",
+        "英文",
+        "linux / osx / macos",
+        "65,536",
+        "回退一次",
+        "不完整",
+        "每次有效查询都在线请求",
+        "不执行建议命令",
+        "不保留对话历史",
+        "macOS / Linux",
+        "stderr",
+    ] {
+        assert!(
+            help.contains(contract),
+            "missing {contract:?} in help:\n{help}"
+        );
+    }
+    requests.assert();
+}
+
+fn configure_initialized_workspace(workspace: &Workspace, openai: &str, anthropic: &str) -> String {
+    let output = workspace.command().arg("--init-config").output().unwrap();
+    assert_success(&output);
+    let path = workspace.path("settings/ruask/config.toml");
+    assert!(String::from_utf8_lossy(&output.stdout).contains(path.to_str().unwrap()));
+    let mut template: toml::Value = toml::from_str(&fs::read_to_string(&path).unwrap()).unwrap();
+    template
+        .as_table_mut()
+        .unwrap()
+        .insert("language".into(), toml::Value::String("en".into()));
+    for (protocol, base_url, model, key) in [
+        ("openai", openai, "saved-openai-model", "saved-openai-key"),
+        (
+            "anthropic",
+            anthropic,
+            "saved-native-model",
+            "saved-native-key",
+        ),
+    ] {
+        for (field, value) in [("base_url", base_url), ("model", model), ("api_key", key)] {
+            template[protocol][field] = toml::Value::String(value.into());
+        }
+    }
+    let saved = toml::to_string(&template).unwrap();
+    workspace.write_config(&saved);
+    fs::create_dir(workspace.path("other-work")).unwrap();
+    saved
+}
+
+fn protocol_query(request: &mockito::Request, protocol: &str) -> serde_json::Value {
+    if protocol == "openai" {
+        request_query(request)
+    } else {
+        let body: serde_json::Value = serde_json::from_slice(request.body().unwrap()).unwrap();
+        serde_json::from_str(body["messages"][0]["content"].as_str().unwrap()).unwrap()
+    }
+}
+
+#[test]
+fn initialized_configuration_combines_cross_directory_queries_and_chinese_pipe_analysis() {
+    use std::io::Write;
+
+    let workspace = Workspace::new();
+    let mut openai = Server::new();
+    let mut native = Server::new();
+    let saved = configure_initialized_workspace(
+        &workspace,
+        &format!("{}/team/v1/", openai.url()),
+        &format!("{}/native/v1/", native.url()),
+    );
+    let command = openai
+        .mock("POST", "/team/v1/chat/completions")
+        .match_header("authorization", "Bearer saved-openai-key")
+        .match_body(Matcher::PartialJson(
+            serde_json::json!({"model":"saved-openai-model", "stream":true}),
+        ))
+        .match_request(|request| {
+            let query = request_query(request);
+            query["command_query"] == "git status"
+                && query["question"].is_null()
+                && query["output_context"].is_null()
+                && query["language"] == "en"
+        })
+        .with_header("content-type", "text/event-stream")
+        .with_body(openai_stream("Inspect changes:\n  git status"))
+        .expect(1)
+        .create();
+    let output = workspace
+        .command()
+        .args(["git", "status"])
+        .output()
+        .unwrap();
+    assert_success(&output);
+    assert_eq!(output.stdout, b"Inspect changes:\n  git status\n");
+
+    let question = native
+        .mock("POST", "/native/v1/messages")
+        .match_header("authorization", "Bearer saved-native-key")
+        .match_body(Matcher::PartialJson(serde_json::json!({"model":"saved-native-model", "stream":true})))
+        .match_request(|request| {
+            let query = protocol_query(request, "anthropic");
+            query["command_query"].is_null()
+                && query["question"] == "How can I inspect changes?"
+                && query["output_context"].is_null()
+                && query["language"] == "en"
+                && query["platform"] == "osx"
+        })
+        .with_header("content-type", "application/json")
+        .with_body(serde_json::json!({"type":"message", "role":"assistant", "content":[{"type":"text", "text":"Inspect changes:\n  git diff"}], "stop_reason":"end_turn"}).to_string())
+        .expect(1)
+        .create();
+    let output = workspace
+        .command()
+        .current_dir(workspace.path("other-work"))
+        .env("RUASK_API_TYPE", "anthropic")
+        .args([
+            "--question",
+            "How can I inspect changes?",
+            "-L",
+            "en",
+            "-p",
+            "macos",
+        ])
+        .output()
+        .unwrap();
+    assert!(output.status.success(), "{output:?}");
+    assert_eq!(output.stdout, b"Inspect changes:\n  git diff\n");
+    assert_eq!(
+        String::from_utf8_lossy(&output.stderr),
+        "ruask: 服务返回完整 JSON 回答，实际使用非流式响应\n"
+    );
+
+    let interpretation = openai
+        .mock("POST", "/team/v1/chat/completions")
+        .match_header("authorization", "Bearer saved-openai-key")
+        .match_body(Matcher::PartialJson(
+            serde_json::json!({"model":"saved-openai-model", "stream":true}),
+        ))
+        .match_request(|request| {
+            let query = request_query(request);
+            query["command_query"] == "cargo build"
+                && query["question"] == "为什么失败，下一步如何排查？"
+                && query["output_context"] == "  error: 缺少依赖 🦀\n\n  at Cargo.toml\n"
+                && query["language"] == "zh"
+                && query["platform"] == "linux"
+        })
+        .with_header("content-type", "text/event-stream")
+        .with_body(openai_stream("检查依赖配置：\n  cargo check"))
+        .expect(1)
+        .create();
+    let mut child = workspace
+        .command()
+        .current_dir(workspace.path("other-work"))
+        .args([
+            "cargo",
+            "build",
+            "-q",
+            "为什么失败，下一步如何排查？",
+            "-L",
+            "zh",
+            "-p",
+            "linux",
+        ])
+        .stdin(Stdio::piped())
+        .stdout(Stdio::piped())
+        .stderr(Stdio::piped())
+        .spawn()
+        .unwrap();
+    child
+        .stdin
+        .take()
+        .unwrap()
+        .write_all("  error: 缺少依赖 🦀\n\n  at Cargo.toml\n".as_bytes())
+        .unwrap();
+    let output = child.wait_with_output().unwrap();
+    assert_success(&output);
+    assert_eq!(output.stdout, "检查依赖配置：\n  cargo check\n".as_bytes());
+    assert_eq!(
+        fs::read_to_string(workspace.path("settings/ruask/config.toml")).unwrap(),
+        saved
+    );
+    command.assert();
+    question.assert();
+    interpretation.assert();
+}
+
+#[test]
+fn repeated_configured_queries_request_again_and_keep_fallback_notices_out_of_redirected_answers() {
+    for protocol in ["openai", "anthropic"] {
+        let workspace = Workspace::new();
+        let mut server = Server::new();
+        let saved = configure_initialized_workspace(
+            &workspace,
+            &format!("{}/openai/v1", server.url()),
+            &format!("{}/native/v1", server.url()),
+        );
+        let (path, key, model) = if protocol == "openai" {
+            (
+                "/openai/v1/chat/completions",
+                "Bearer saved-openai-key",
+                "saved-openai-model",
+            )
+        } else {
+            (
+                "/native/v1/messages",
+                "Bearer saved-native-key",
+                "saved-native-model",
+            )
+        };
+        let streaming = server.mock("POST", path)
+            .match_header("authorization", key)
+            .match_body(Matcher::PartialJson(serde_json::json!({"model":model, "stream":true})))
+            .match_request(move |request| {
+                let query = protocol_query(request, protocol);
+                query["command_query"] == "git status" && query["question"].is_null() && query["language"] == "en"
+            })
+            .with_status(400)
+            .with_header("content-type", "application/json")
+            .with_body(r#"{"error":{"code":"unsupported_streaming","message":"streaming is not supported"}}"#)
+            .expect(2).create();
+        let content = "Show changes:\n```sh\n  git status\n```";
+        let answer = if protocol == "openai" {
+            serde_json::json!({"choices":[{"message":{"content":content},"finish_reason":"stop"}]})
+        } else {
+            serde_json::json!({"type":"message","role":"assistant","content":[{"type":"text","text":content}],"stop_reason":"end_turn"})
+        };
+        let fallback = server
+            .mock("POST", path)
+            .match_header("authorization", key)
+            .match_body(Matcher::PartialJson(
+                serde_json::json!({"model":model,"stream":false}),
+            ))
+            .match_request(move |request| {
+                protocol_query(request, protocol)["command_query"] == "git status"
+            })
+            .with_header("content-type", "application/json")
+            .with_body(answer.to_string())
+            .expect(2)
+            .create();
+        for run in 0..2 {
+            let answer_path = workspace.path(&format!("answer-{run}.txt"));
+            let output = workspace
+                .command()
+                .current_dir(workspace.path("other-work"))
+                .env("RUASK_API_TYPE", protocol)
+                .args(["git", "status"])
+                .stdout(fs::File::create(&answer_path).unwrap())
+                .output()
+                .unwrap();
+            assert!(output.status.success(), "{protocol}: {output:?}");
+            assert!(output.stdout.is_empty());
+            assert_eq!(
+                fs::read(&answer_path).unwrap(),
+                b"Show changes:\n  git status\n"
+            );
+            assert_eq!(
+                String::from_utf8_lossy(&output.stderr),
+                "ruask: 服务明确不支持流式，回退一次非流式请求\n"
+            );
+        }
+        streaming.assert();
+        fallback.assert();
+        assert_eq!(
+            fs::read_to_string(workspace.path("settings/ruask/config.toml")).unwrap(),
+            saved
+        );
+    }
+}

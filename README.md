@@ -30,7 +30,6 @@ cargo build --release
 已展示部分回答后发生错误，保留已显示完整行，标记不完整并非零退出，不重放回答。
 stdout 仅包含回答，重定向保存时不会混入这些提醒；没有答案缓存或持久能力缓存。
 
-
 希望直接使用 `ruask` 命令时，可以安装到 Cargo 的二进制目录：
 
 ```sh
@@ -125,8 +124,8 @@ ruask cargo
 目标平台默认为当前主机，`-p` / `--platform` 接受 `linux`、`osx` 和 `macos`（归一为 `osx`），
 无效值在本地报错。请求携带最终语言和平台，并要求模型优先为自然语言任务提供目标平台可用命令。
 明确查询的命令若不适用于目标平台，则要求简短注明适用平台后继续解释原命令，不自动替换工具。
-本地 HTTP 替身测试只验证请求约束及固定回答展示；真实模型的语言遵从和跨平台命令质量由
-[#10](https://github.com/KevinGuo1007/ruask/issues/10) 单独验收。
+本地 HTTP 替身测试只验证请求约束及固定回答展示。真实模型的语言遵从、跨平台命令质量和延迟
+按[独立验收清单](docs/acceptance.md)检查；当前这些真实服务项目均未执行。
 
 | 输入 | 查询语义 |
 | --- | --- |
@@ -182,6 +181,31 @@ tail -n 100 error.log | ruask -q "如何排查这些错误"
 - 正常结束返回 `0`，输入、配置或模型请求失败返回非零退出码。
 - 下游提前关闭输出时安静结束，例如 `ruask git | head -n 1`。
 
+## 配置一次后的完整工作流
+
+模板可同时保存两个协议的设置。填写各组自己的地址、密钥和模型后，在任意工作目录使用：
+
+```sh
+ruask --init-config
+# 编辑显示的 config.toml，填写 [openai] 与 [anthropic]；已有文件不会被覆盖。
+cd /path/to/project-a
+ruask git status
+ruask git commit -q "如何修改上一次提交的信息"
+
+cd /path/to/project-b
+RUASK_API_TYPE=anthropic ruask -q "How can I inspect changes?" -L en -p macos
+cat error.log | ruask cargo build -q "为什么失败，下一步如何排查？" -L zh -p linux
+ruask git status > usage.txt 2> status.txt
+```
+
+上面的协议环境变量只覆盖该次调用。后续未指定时仍遵循文件选择，不需要更换另一组配置。
+`usage.txt` 默认只含纯文本回答；兼容提醒和错误进入 `status.txt`。相同的有效查询再次调用时，
+仍会在线请求，并从流式开始，不复用旧答案或之前的能力判断。
+
+首版支持 macOS/Linux、英文和简体中文，专注命令速查与有限输出解读。
+不提供持续日志分析、命令执行、跨调用历史、文档检索、其他云平台专属协议或 Windows 适配。
+安装包发布、Homebrew 配方和安装脚本不在本版范围内。
+
 ## 代码结构
 
 ```text
@@ -198,8 +222,12 @@ tests/
   cli.rs           启动真实 CLI，用本地 HTTP 服务代替模型
   config.rs        隔离用户目录，验证配置文件与真实查询
   streaming.rs     受控服务握手、拆片、断流与下游关闭
+  anthropic.rs     原生协议请求、内容块与完成状态
+  compatibility.rs 两协议回退、JSON 复用和禁止重试的错误
+  rendering.rs     伪终端颜色、围栏过滤与逐行渲染
 docs/
   learning.md      Rust 前置知识、阅读顺序和 TDD 开发过程
+  acceptance.md    客户端组合验收及独立真实模型质量/延迟清单
 ```
 
 建议从 [学习指南](docs/learning.md) 开始，再沿着 `main → run` 阅读源码。
@@ -213,3 +241,6 @@ cargo clippy --all-targets -- -D warnings
 ```
 
 测试不需要真实模型密钥，会监听本机随机端口；macOS/Linux 的颜色测试还会创建本地伪终端。
+
+离线测试验证客户端契约，不证明模型命令正确率或自然语言理解质量。
+真实服务验收、测量定义及未执行项目见[验收清单](docs/acceptance.md)；不承诺未经实测的固定毫秒延迟。
