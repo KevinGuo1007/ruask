@@ -34,6 +34,8 @@ ruask git commit
 ruask git commit -q "如何修改上一次提交的信息"
 ruask "如何查看占用 8080 端口的进程"
 ruask --question "如何查找大于 100 MB 的文件"
+ruask -L zh -p linux "如何查看端口占用"
+ruask --language en --platform macos launchctl
 ruask "git commit --amend"
 ruask -- git commit --amend
 ruask git status > usage.txt
@@ -51,7 +53,7 @@ macOS 和 Linux 均读取 `$XDG_CONFIG_HOME/ruask/config.toml`。
 
 ```toml
 api_type = "openai"
-# language = "zh" # 可以保存偏好，当前版本暂不应用
+# language = "zh" # en / zh（简体中文）；未设置时使用 locale，再回退英文
 
 [openai]
 base_url = "https://your-provider.example/v1"
@@ -90,6 +92,21 @@ ruask cargo
 
 ## 输入和输出约定
 
+结果语言支持 `en`（英文）和 `zh`（简体中文）。优先级为 `-L` / `--language`
+→ 用户配置文件的 `language` → locale → 英文。CLI 和文件中显式不支持的语言在本地报错，
+不发送模型请求；CLI 的有效选择可以覆盖文件中的语言偏好。
+
+自动选择时，`LANG` 未设置就直接使用英文；否则依次尝试 `LANGUAGE` 的冒号列表、
+`LANG`、英文，跳过 C/POSIX 和不支持的候选。编码、区域和修饰信息归一为基础语言，
+例如 `en_US.UTF-8` → `en`，`zh_TW.UTF-8` → `zh`；中文统一要求简体。
+不使用 `LC_ALL` 或 `LC_MESSAGES` 选择结果语言。
+
+目标平台默认为当前主机，`-p` / `--platform` 接受 `linux`、`osx` 和 `macos`（归一为 `osx`），
+无效值在本地报错。请求携带最终语言和平台，并要求模型优先为自然语言任务提供目标平台可用命令。
+明确查询的命令若不适用于目标平台，则要求简短注明适用平台后继续解释原命令，不自动替换工具。
+本地 HTTP 替身测试只验证请求约束及固定回答展示；真实模型的语言遵从和跨平台命令质量由
+[#10](https://github.com/KevinGuo1007/ruask/issues/10) 单独验收。
+
 | 输入 | 查询语义 |
 | --- | --- |
 | `ruask cargo` | 已知命令 |
@@ -123,7 +140,7 @@ ruask cargo
 ```text
 src/
   main.rs          参数、stdin、执行顺序、输出和退出码
-  query.rs         命令查询与附带问题的数据结构
+  query.rs         命令查询、语言与 locale 解析、目标平台
   config.rs        用户配置定位、初始化、环境覆盖与字段校验
   model.rs         模型请求和回答解析
 tests/

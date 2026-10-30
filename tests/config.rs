@@ -5,6 +5,9 @@ use std::process::{Command, Output, Stdio};
 use mockito::{Matcher, Server};
 use tempfile::TempDir;
 
+mod support;
+use support::request_query;
+
 struct Workspace {
     root: TempDir,
 }
@@ -42,6 +45,69 @@ impl Workspace {
 fn assert_success(output: &Output) {
     assert!(output.status.success(), "{output:?}");
     assert!(output.stderr.is_empty(), "{output:?}");
+}
+
+#[test]
+fn language_uses_cli_then_saved_preference_before_locale() {
+    for (saved, args, locale, expected) in [
+        ("zh", vec![], "en_US.UTF-8", "zh"),
+        ("en", vec![], "zh_CN.UTF-8", "en"),
+        ("zh", vec!["-L", "en"], "zh_CN.UTF-8", "en"),
+        ("en", vec!["--language", "zh"], "en_US.UTF-8", "zh"),
+        ("fr", vec!["-L", "zh"], "en_US.UTF-8", "zh"),
+    ] {
+        let workspace = Workspace::new();
+        workspace.write_config(&format!("language = {saved:?}\n"));
+        let mut server = Server::new();
+        let response = server
+            .mock("POST", "/v1/chat/completions")
+            .match_request(move |request| {
+                let query = request_query(request);
+                query["language"] == expected
+            })
+            .with_body(r#"{"choices":[{"message":{"content":"git status"}}]}"#)
+            .expect(1)
+            .create();
+        let output = workspace
+            .command()
+            .arg("git")
+            .args(&args)
+            .env("OPENAI_BASE_URL", format!("{}/v1", server.url()))
+            .env("OPENAI_API_KEY", "test-key")
+            .env("OPENAI_MODEL", "test-model")
+            .env("LANG", locale)
+            .env("LANGUAGE", "zh:en")
+            .output()
+            .unwrap();
+        assert_success(&output);
+        response.assert();
+    }
+}
+
+#[test]
+fn unsupported_saved_languages_fail_locally_instead_of_using_locale() {
+    let mut server = Server::new();
+    let requests = server.mock("POST", Matcher::Any).expect(0).create();
+    for saved in ["fr", "zh_TW", "", " ", "en_US.UTF-8"] {
+        let workspace = Workspace::new();
+        workspace.write_config(&format!("language = {saved:?}\n"));
+        let output = workspace
+            .command()
+            .arg("git")
+            .env("OPENAI_BASE_URL", format!("{}/v1", server.url()))
+            .env("OPENAI_API_KEY", "test-key")
+            .env("OPENAI_MODEL", "test-model")
+            .env("LANG", "zh_CN.UTF-8")
+            .output()
+            .unwrap();
+        assert!(!output.status.success(), "{output:?}");
+        assert!(output.stdout.is_empty(), "{output:?}");
+        assert!(
+            String::from_utf8_lossy(&output.stderr).contains("结果语言仅支持 en 或 zh"),
+            "{output:?}"
+        );
+    }
+    requests.assert();
 }
 
 #[test]

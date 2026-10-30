@@ -11,6 +11,8 @@
         ↓
     读取模型配置
         ↓
+    选择结果语言与目标平台
+        ↓
     请求模型并解析回答
         ↓
     把回答写入 stdout
@@ -31,11 +33,13 @@
 
 1. `main()`：成功返回 `0`，失败显示错误并返回非零值。
 2. `run()`：解析参数、查看帮助，或依次读取查询、读取配置、调用模型、输出回答。
-3. `Arguments::parse()`：识别问题选项与 `--` 分隔符，拒绝未知选项与缺少的值。
+3. `Arguments::parse()`：识别问题、语言、平台选项与 `--` 分隔符，拒绝未知选项与缺少的值。
 4. `read_query()`：拒绝显式空白查询，读取管道，构造查询或表示应显示帮助的 `None`。
 5. `write_output()`：输出文本，处理下游已经关闭的情况。
 
-`src/query.rs` 的 `Query` 分开保存命令查询与附带问题。
+`src/query.rs` 的 `Query` 分开保存命令查询与附带问题；`Language` 和 `Platform`
+限定首版支持的选择，`Language::from_locale()` 按 LANG/LANGUAGE 规则选择语言。
+`run()` 依次考虑 CLI 语言、文件偏好与 locale，并选择 CLI 平台或当前主机平台。
 
 `src/config.rs` 负责用户配置：
 
@@ -52,7 +56,7 @@
 
 ```rust
 config::load()
-ask(&config, &query)
+ask(&config, &query, language, platform)
 ```
 
 配置解析由配置模块负责，JSON 响应结构保持在模型模块内部。暂时没有需要多种实现切换的地方，
@@ -66,7 +70,7 @@ ask(&config, &query)
 `&str` 是对文本的借用；`&Config` 是对配置的借用。
 
 ```rust
-let answer = model::ask(&config, &query)?;
+let answer = model::ask(&config, &query, language, platform)?;
 ```
 
 这里没有把配置和提问的所有权交给 `ask()`。它在调用期间读取它们，返回一个自己
@@ -100,7 +104,7 @@ stdin.read_to_string(&mut input)?;
 `Result<T, E>` 表示“成功 `Ok(T)`”或“失败 `Err(E)`”，失败时还携带原因。
 
 ```rust
-fn ask(config: &Config, query: &Query) -> Result<String, Box<dyn Error>>
+fn ask(config: &Config, query: &Query, language: Language, platform: Platform) -> Result<String, Box<dyn Error>>
 ```
 
 这行可以先读成：“读取配置和提问；成功返回回答文本，失败返回错误。”
@@ -139,7 +143,7 @@ let config = config::load()?;
   "model": "你配置的模型名",
   "messages": [
     {"role": "system", "content": "命令行用途与简洁纯文本回答指令"},
-    {"role": "user", "content": "{\"command_query\":\"git commit\",\"question\":null}"}
+    {"role": "user", "content": "{\"command_query\":\"git commit\",\"question\":null,\"language\":\"zh\",\"platform\":\"osx\"}"}
   ]
 }
 ```

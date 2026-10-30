@@ -4,6 +4,9 @@ use std::process::{Command, Output, Stdio};
 use mockito::{Matcher, Server};
 use serde_json::{Value, json};
 
+mod support;
+use support::request_query;
+
 fn ruask(base_url: &str) -> Command {
     let mut command = Command::new(env!("CARGO_BIN_EXE_ruask"));
     // 只配置子进程，避免读取开发者的密钥或影响并行运行的其他测试。
@@ -31,8 +34,12 @@ fn query_request(
             && messages.len() == 2
             && messages[0]["role"] == "system"
             && messages[1]["role"] == "user"
-            && serde_json::from_str::<Value>(messages[1]["content"].as_str().unwrap()).unwrap()
-                == expected
+            && {
+                let query = request_query(request);
+                query["command_query"] == expected["command_query"]
+                    && query["question"] == expected["question"]
+                    && query["language"] == "en"
+            }
     }
 }
 
@@ -429,6 +436,18 @@ fn instructions_define_the_command_line_reference_contract() {
                 "without Markdown code fences",
                 "ANSI escape",
                 "single query",
+                "language=en",
+                "language=zh",
+                "Simplified Chinese",
+                "Traditional Chinese",
+                "platform=linux",
+                "platform=osx",
+                "natural-language task",
+                "prefer commands available on the target platform",
+                "explicitly queried command",
+                "briefly note its applicable platform",
+                "continue explaining the original command",
+                "do not replace it with another tool",
             ]
             .iter()
             .all(|rule| system.contains(rule))
@@ -523,6 +542,178 @@ fn repeated_queries_each_make_one_fresh_request() {
         assert!(output.status.success(), "{output:?}");
     }
     response.assert();
+}
+
+#[test]
+fn explicit_language_is_sent_to_the_model_and_fixed_answers_are_displayed() {
+    for (flag, language, answer) in [
+        ("-L", "zh", "查看状态：\n  git status"),
+        ("--language", "en", "Show status:\n  git status"),
+    ] {
+        let mut server = Server::new();
+        let response = server
+            .mock("POST", "/v1/chat/completions")
+            .match_request(move |request| {
+                let query = request_query(request);
+                query["language"] == language
+                    && query["command_query"] == "git status"
+                    && query["question"] == "show changes"
+            })
+            .with_body(json!({"choices": [{"message": {"content": answer}}]}).to_string())
+            .expect(1)
+            .create();
+        let output = ruask(&format!("{}/v1", server.url()))
+            .args(["git", flag, language, "status", "-q", "show changes"])
+            .output()
+            .unwrap();
+        assert!(output.status.success(), "{output:?}");
+        assert!(output.stderr.is_empty(), "{output:?}");
+        assert_eq!(
+            String::from_utf8_lossy(&output.stdout),
+            format!("{answer}\n")
+        );
+        response.assert();
+    }
+}
+
+#[test]
+fn automatic_language_follows_locale_candidates_and_falls_back_to_english() {
+    for (lang, language, expected) in [
+        (None, Some("zh:en"), "en"),
+        (Some("en_US.UTF-8"), Some("fr:zh_TW.UTF-8:en"), "zh"),
+        (Some("zh_CN.UTF-8"), Some("fr:de_DE"), "zh"),
+        (Some("zh_TW.UTF-8"), None, "zh"),
+        (Some("zh-Hant-TW.UTF-8"), None, "zh"),
+        (Some("en_GB.UTF-8"), Some("fr:en_US:zh"), "en"),
+        (Some("zh_HK.UTF-8"), Some("C:POSIX:de:en"), "en"),
+        (Some("C"), Some("zh"), "zh"),
+        (Some("C.UTF-8"), None, "en"),
+        (Some("POSIX"), Some("C:POSIX:fr"), "en"),
+        (Some("de_DE.UTF-8"), Some("fr:ja_JP"), "en"),
+        (Some(""), Some(":C::zh_CN.UTF-8:"), "zh"),
+        (Some("ZH_tw.UTF-8@variant"), None, "zh"),
+    ] {
+        let mut server = Server::new();
+        let response = server
+            .mock("POST", "/v1/chat/completions")
+            .match_request(move |request| {
+                let query = request_query(request);
+                query["language"] == expected
+            })
+            .with_body(r#"{"choices":[{"message":{"content":"git status"}}]}"#)
+            .expect(1)
+            .create();
+        let mut command = ruask(&format!("{}/v1", server.url()));
+        command
+            .arg("git")
+            .env("LC_ALL", "zh_CN.UTF-8")
+            .env("LC_MESSAGES", "zh_CN.UTF-8");
+        if let Some(value) = lang {
+            command.env("LANG", value);
+        }
+        if let Some(value) = language {
+            command.env("LANGUAGE", value);
+        }
+        let output = command.output().unwrap();
+        assert!(
+            output.status.success(),
+            "LANG={lang:?} LANGUAGE={language:?}: {output:?}"
+        );
+        assert!(output.stderr.is_empty(), "{output:?}");
+        response.assert();
+    }
+}
+
+#[test]
+fn platform_defaults_to_host_and_accepts_overrides_and_macos_alias() {
+    let host = match std::env::consts::OS {
+        "macos" => "osx",
+        "linux" => "linux",
+        other => panic!("unsupported test host: {other}"),
+    };
+    for (args, expected) in [
+        (vec![], host),
+        (vec!["-p", "linux"], "linux"),
+        (vec!["--platform", "osx"], "osx"),
+        (vec!["-p", "macos"], "osx"),
+    ] {
+        let mut server = Server::new();
+        let response = server
+            .mock("POST", "/v1/chat/completions")
+            .match_request(move |request| {
+                let query = request_query(request);
+                query["platform"] == expected
+                    && query["language"] == "zh"
+                    && query["command_query"] == "find a process using port 8080"
+            })
+            .with_body(r#"{"choices":[{"message":{"content":"固定回答"}}]}"#)
+            .expect(1)
+            .create();
+        let output = ruask(&format!("{}/v1", server.url()))
+            .args(["-L", "zh"])
+            .args(&args)
+            .arg("find a process using port 8080")
+            .output()
+            .unwrap();
+        assert!(output.status.success(), "{args:?}: {output:?}");
+        assert!(output.stderr.is_empty(), "{output:?}");
+        assert_eq!(String::from_utf8_lossy(&output.stdout), "固定回答\n");
+        response.assert();
+    }
+}
+
+#[test]
+fn language_and_platform_options_reject_invalid_or_missing_values_locally() {
+    let mut server = Server::new();
+    let requests = server.mock("POST", Matcher::Any).expect(0).create();
+    for (args, expected) in [
+        (vec!["git", "-L", "fr"], "结果语言仅支持 en 或 zh"),
+        (
+            vec!["git", "--language", "zh_TW"],
+            "结果语言仅支持 en 或 zh",
+        ),
+        (vec!["git", "-L", ""], "结果语言仅支持 en 或 zh"),
+        (vec!["git", "--language", " "], "结果语言仅支持 en 或 zh"),
+        (vec!["git", "-p", "windows"], "目标平台仅支持"),
+        (vec!["git", "--platform", ""], "目标平台仅支持"),
+        (vec!["git", "-L"], "选项 -L 需要一个字符串值"),
+        (
+            vec!["git", "--language"],
+            "选项 --language 需要一个字符串值",
+        ),
+        (vec!["git", "-p"], "选项 -p 需要一个字符串值"),
+        (
+            vec!["git", "--platform"],
+            "选项 --platform 需要一个字符串值",
+        ),
+        (vec!["git", "-L", "--help"], "选项 -L 需要一个字符串值"),
+        (vec!["git", "-p", "--"], "选项 -p 需要一个字符串值"),
+        (
+            vec!["git", "-q", "--language", "zh"],
+            "选项 -q 需要一个字符串值",
+        ),
+        (
+            vec!["git", "--question", "-p", "linux"],
+            "选项 --question 需要一个字符串值",
+        ),
+        (vec!["--init-config", "-L", "zh"], "需单独使用"),
+        (vec!["--init-config", "-p", "linux"], "需单独使用"),
+    ] {
+        for configured in [true, false] {
+            let mut command = ruask(&format!("{}/v1", server.url()));
+            command.args(&args);
+            if !configured {
+                command.env_remove("OPENAI_API_KEY");
+            }
+            let output = command.output().unwrap();
+            assert!(!output.status.success(), "{args:?}: {output:?}");
+            assert!(output.stdout.is_empty(), "{output:?}");
+            let error = String::from_utf8_lossy(&output.stderr);
+            assert!(error.contains(expected), "{args:?}: {error}");
+            assert!(!error.contains("test-key"), "{error}");
+        }
+    }
+    requests.assert();
 }
 
 #[test]

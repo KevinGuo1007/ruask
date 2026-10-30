@@ -7,7 +7,7 @@ use std::path::PathBuf;
 use serde::Deserialize;
 
 const TEMPLATE: &str = r#"api_type = "openai" # openai / anthropic
-# language = "zh"  # 保存语言偏好，当前版本暂不应用
+# language = "zh"  # en / zh（简体中文）；未设置时使用 locale，再回退英文
 
 [openai]
 base_url = "https://your-service.example/v1"
@@ -66,6 +66,7 @@ pub fn initialize() -> Result<String, Box<dyn Error>> {
 }
 
 pub struct Config {
+    pub language: Option<String>,
     pub api_type: ApiType,
     pub base_url: String,
     pub api_key: String,
@@ -79,6 +80,7 @@ pub enum ApiType {
 
 #[derive(Default, Deserialize)]
 struct FileConfig {
+    language: Option<String>,
     api_type: Option<String>,
     #[serde(default)]
     openai: ProviderConfig,
@@ -127,6 +129,7 @@ pub fn load() -> Result<Config, Box<dyn Error>> {
         _ => return Err("RUASK_API_TYPE 或配置 api_type 必须为 openai 或 anthropic".into()),
     };
     Ok(Config {
+        language: file.language,
         api_type,
         base_url: setting(names[0], provider.base_url, path.as_deref())?,
         api_key: setting(names[1], provider.api_key, path.as_deref())?,

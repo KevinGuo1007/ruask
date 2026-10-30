@@ -6,6 +6,8 @@ use std::error::Error;
 use std::io::{self, IsTerminal, Read, Write};
 use std::process::ExitCode;
 
+use query::{Language, Platform};
+
 const HELP: &str = "用法：ruask [命令或命令行任务...] [-q \"附带问题\"]
       ruask -q \"命令行问题\"
       ruask -- 命令 [目标命令的选项...]
@@ -25,6 +27,8 @@ const HELP: &str = "用法：ruask [命令或命令行任务...] [-q \"附带问
 
 选项：
   -q, --question <字符串>  附带问题，也可独立使用
+  -L, --language <en|zh>   结果语言：英文或简体中文（覆盖文件与 locale）
+  -p, --platform <平台>    目标平台：linux / osx / macos（默认当前主机）
   --init-config           创建用户配置模板，保留已有文件
   -h, --help               显示帮助";
 
@@ -47,11 +51,22 @@ fn run() -> Result<(), Box<dyn Error>> {
         return write_output(&config::initialize()?);
     }
 
-    let Some(query) = read_query(args)? else {
+    let Some(query) = read_query(&args)? else {
         return write_output(HELP);
     };
     let config = config::load()?;
-    let answer = model::ask(&config, &query)?;
+    let language = match args.language {
+        Some(language) => language,
+        None => match config.language.as_deref() {
+            Some(language) => Language::parse(language)?,
+            None => Language::from_locale(),
+        },
+    };
+    let platform = match args.platform {
+        Some(platform) => platform,
+        None => Platform::host()?,
+    };
+    let answer = model::ask(&config, &query, language, platform)?;
     write_output(&answer)
 }
 
@@ -69,6 +84,8 @@ fn write_output(text: &str) -> Result<(), Box<dyn Error>> {
 struct Arguments {
     command: Vec<String>,
     question: Option<String>,
+    language: Option<Language>,
+    platform: Option<Platform>,
     help: bool,
     init_config: bool,
 }
@@ -85,18 +102,16 @@ impl Arguments {
                 }
                 "-h" | "--help" => parsed.help = true,
                 "--init-config" => parsed.init_config = true,
+                "-L" | "--language" => {
+                    let value = option_value(&arg, &mut args)?;
+                    parsed.language = Some(Language::parse(&value)?);
+                }
+                "-p" | "--platform" => {
+                    let value = option_value(&arg, &mut args)?;
+                    parsed.platform = Some(Platform::parse(&value)?);
+                }
                 "-q" | "--question" => {
-                    let value = args
-                        .next()
-                        .filter(|value| {
-                            !matches!(
-                                value.as_str(),
-                                "--" | "-q" | "--question" | "-h" | "--help" | "--init-config"
-                            )
-                        })
-                        .ok_or_else(|| {
-                            format!("选项 {arg} 需要一个字符串值；例如 {arg} \"如何查看端口占用\"")
-                        })?;
+                    let value = option_value(&arg, &mut args)?;
                     if parsed.question.replace(value).is_some() {
                         return Err("-q / --question 只能提供一次".into());
                     }
@@ -110,14 +125,41 @@ impl Arguments {
                 _ => parsed.command.push(arg),
             }
         }
-        if parsed.init_config && (!parsed.command.is_empty() || parsed.question.is_some()) {
+        if parsed.init_config
+            && (!parsed.command.is_empty()
+                || parsed.question.is_some()
+                || parsed.language.is_some()
+                || parsed.platform.is_some())
+        {
             return Err("--init-config 需单独使用".into());
         }
         Ok(parsed)
     }
 }
 
-fn read_query(args: Arguments) -> Result<Option<query::Query>, Box<dyn Error>> {
+fn option_value(
+    option: &str,
+    args: &mut impl Iterator<Item = String>,
+) -> Result<String, Box<dyn Error>> {
+    args.next()
+        .filter(|value| {
+            !matches!(
+                value.as_str(),
+                "--" | "-q"
+                    | "--question"
+                    | "-L"
+                    | "--language"
+                    | "-p"
+                    | "--platform"
+                    | "-h"
+                    | "--help"
+                    | "--init-config"
+            )
+        })
+        .ok_or_else(|| format!("选项 {option} 需要一个字符串值").into())
+}
+
+fn read_query(args: &Arguments) -> Result<Option<query::Query>, Box<dyn Error>> {
     let command = args.command.join(" ");
     if (!args.command.is_empty() && command.trim().is_empty())
         || args.question.as_ref().is_some_and(|q| q.trim().is_empty())
@@ -152,6 +194,6 @@ fn read_query(args: Arguments) -> Result<Option<query::Query>, Box<dyn Error>> {
         } else {
             Some(prompt)
         },
-        question: args.question,
+        question: args.question.clone(),
     }))
 }
