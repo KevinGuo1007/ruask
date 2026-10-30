@@ -26,7 +26,9 @@ stdin 作为原始输出上下文，读到结束后解读含义、明显错误�
   OPENAI_BASE_URL  接口基础地址（包含服务所需路径，例如 /v1）
   OPENAI_API_KEY   接口密钥
   OPENAI_MODEL     模型名称
-  RUASK_API_TYPE   openai / anthropic（当前支持 OpenAI 兼容请求）
+  ANTHROPIC_BASE_URL / ANTHROPIC_API_KEY / ANTHROPIC_MODEL  原生 Messages 配置
+  ANTHROPIC_WORKSPACE_ID  非单 workspace 密钥所需的可选 workspace 元数据
+  RUASK_API_TYPE   openai / anthropic（Chat Completions / 原生 Messages）
 
 选项：
   -q, --question <字符串>  附带问题，也可独立使用

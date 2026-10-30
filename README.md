@@ -14,12 +14,14 @@ cargo build --release
 ./target/release/ruask git commit
 ```
 
-`OPENAI_BASE_URL` 是基础地址，包含服务所需的路径前缀。程序在后面追加
-`/chat/completions`，地址末尾有无 `/` 都可以。地址、密钥和模型名称合并后均为必需。
+`OPENAI_BASE_URL` / `ANTHROPIC_BASE_URL` 是对应协议的基础地址，包含服务所需的路径前缀。程序在后面追加
+`/chat/completions`（OpenAI 兼容协议）或 `/messages`（Anthropic 原生协议），
+地址末尾有无 `/` 都可以；网关中间路径保持不变，程序不自动补 `/v1`。地址、密钥和模型名称合并后均为必需。
 
-支持 OpenAI 兼容的 Chat Completions 文本接口，默认发送一次流式请求。
+支持 OpenAI 兼容的 Chat Completions 与 Anthropic 原生 Messages 文本接口，默认发送一次流式请求。
 正文每形成完整行就显示并刷新，正常结束时补齐没有换行的最后一行。
-模型请求的总超时为 60 秒。
+模型请求的总超时为 60 秒。Anthropic 只展示文本内容块，忽略思考、工具与心跳数据；
+要求正常结束原因及消息结束事件，生成截断、异常 EOF 和流内错误均不能算成功。
 
 希望直接使用 `ruask` 命令时，可以安装到 Cargo 的二进制目录：
 
@@ -70,7 +72,16 @@ api_key = "YOUR_API_KEY"
 
 协议优先级为 `RUASK_API_TYPE` → 文件 `api_type` → `openai`。
 `openai` 表示 OpenAI 兼容协议，不根据模型名或服务域名猜测协议。
-目前可保存、选择和校验 Anthropic 独立配置；选中它会在本地提示尚未接入原生请求。
+`anthropic` 使用原生 Messages，请求在顶层发送 `system` 指令、用户消息与 `max_tokens=4096`。
+两类协议均默认流式，复用完整行展示；不会因为模型名含 `claude` 改变所选协议。
+
+Anthropic 发送 `Authorization: Bearer <api_key>` 和 `anthropic-version: 2026-10-21`。
+使用未绑定单个 workspace 的密钥时，另设 `ANTHROPIC_WORKSPACE_ID`，作为
+`anthropic-workspace-id` 请求头；绑定单 workspace 的密钥可省略。该变量只在选中
+`anthropic` 时使用，显式空白值在本地报错。只接受旧 `x-api-key` 的网关需要调整其认证兼容性，
+程序不会自动猜测另一种认证方式。认证与版本依据
+[官方认证说明](https://platform.claude.com/docs/en/manage-claude/authentication)和
+[API 版本说明](https://platform.claude.com/docs/en/api/versioning)。
 
 所选协议按字段合并环境变量与文件配置，环境变量优先：
 
@@ -156,7 +167,9 @@ src/
   main.rs          参数、stdin、执行顺序、输出和退出码
   query.rs         命令查询、语言与 locale 解析、目标平台
   config.rs        用户配置定位、初始化、环境覆盖与字段校验
-  model.rs         模型请求、流式事件与完成状态解析
+  model.rs         查询指令、协议选择与 OpenAI 流式请求
+  model/anthropic.rs  原生 Messages 请求、文本块与完成状态
+  model/sse.rs     两类协议共用的 SSE 事件帧读取
   output.rs        缓冲未完成文本行，逐行输出与刷新
 tests/
   cli.rs           启动真实 CLI，用本地 HTTP 服务代替模型

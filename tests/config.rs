@@ -227,7 +227,10 @@ api_key = "other-key"
 #[test]
 fn protocol_selection_is_explicit_and_does_not_send_anthropic_to_openai() {
     let mut server = Server::new();
-    let requests = server.mock("POST", Matcher::Any).expect(0).create();
+    let requests = server
+        .mock("POST", "/openai/chat/completions")
+        .expect(0)
+        .create();
     for (file_type, override_type) in [("anthropic", None), ("openai", Some("anthropic"))] {
         let workspace = Workspace::new();
         workspace.write_config(&format!(
@@ -244,17 +247,22 @@ api_key = "anthropic-secret"
 "#,
             url = server.url()
         ));
+        let response = server.mock("POST", "/anthropic/messages")
+            .match_header("authorization", "Bearer anthropic-secret")
+            .match_header("anthropic-version", "2026-10-21")
+            .match_body(Matcher::PartialJson(serde_json::json!({"model":"native-model", "stream":true})))
+            .with_header("content-type", "application/json")
+            .with_body(r#"{"type":"message","role":"assistant","stop_reason":"end_turn","content":[{"type":"text","text":"git status"}]}"#)
+            .expect(1).create();
         let mut command = workspace.command();
         command.arg("git");
         if let Some(value) = override_type {
             command.env("RUASK_API_TYPE", value);
         }
         let output = command.output().unwrap();
-        assert!(!output.status.success(), "{output:?}");
-        assert!(output.stdout.is_empty());
-        let error = String::from_utf8_lossy(&output.stderr);
-        assert!(error.contains("Anthropic 原生协议尚未接入"), "{error}");
-        assert!(!error.contains("secret"), "{error}");
+        assert_success(&output);
+        assert_eq!(output.stdout, b"git status\n");
+        response.assert();
     }
     requests.assert();
 }

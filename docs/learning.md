@@ -50,8 +50,10 @@
 
 `src/model.rs` 集中处理模型服务相关的知识：
 
-1. `ask()`：附加命令行领域与简洁回答指令，发送 OpenAI 流式请求，选中 Anthropic 时本地报错。
-2. SSE 按空行分隔事件，`data` 中的 JSON 只提取正文增量；要求 `stop` 完成原因与 `[DONE]`，异常 EOF 或截断返回不完整错误。
+1. `ask()`：附加共同的命令行领域指令，按显式配置选择协议；OpenAI 将指令放在 system 消息，Anthropic 放在顶层 system。
+2. `model/sse.rs` 按空行读取完整 SSE 事件，两类协议各自解释 data JSON，不直接显示协议内容。
+3. OpenAI 要求 `stop` 完成原因与 `[DONE]`；`model/anthropic.rs` 处理 named SSE 的消息、文本块与结束状态，并可解析普通 JSON 的文本块。异常 EOF、截断、流内错误返回不完整错误。
+4. Anthropic 使用 Bearer 认证、固定 API 版本 `2026-10-21` 和必要的 max_tokens；非单 workspace 密钥另由 ANTHROPIC_WORKSPACE_ID 提供元数据。
 
 `src/output.rs` 的 `Lines` 接收正文片段，只缓冲尚未完成的行；每行写出后立即刷新。
 正常结束才输出无换行尾行；失败时未完成的尾行不冒充完整内容。

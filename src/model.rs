@@ -1,5 +1,8 @@
+mod anthropic;
+mod sse;
+
 use std::error::Error;
-use std::io::{BufRead, BufReader};
+use std::io::BufReader;
 use std::time::Duration;
 
 use serde_json::{Value, json};
@@ -36,8 +39,16 @@ pub fn ask(
     platform: Platform,
     output: &mut Lines<impl std::io::Write>,
 ) -> Result<(), Box<dyn Error>> {
+    let input = json!({
+        "command_query": query.command_query,
+        "question": query.question,
+        "output_context": query.output_context,
+        "language": language,
+        "platform": platform
+    })
+    .to_string();
     if matches!(config.api_type, ApiType::Anthropic) {
-        return Err("Anthropic 原生协议尚未接入；当前可选择已配置的 OpenAI 兼容接口".into());
+        return anthropic::ask(config, INSTRUCTIONS, &input, output);
     }
     let url = format!("{}/chat/completions", config.base_url.trim_end_matches('/'));
     let body = json!({
@@ -45,13 +56,7 @@ pub fn ask(
         "stream": true,
         "messages": [
             {"role": "system", "content": INSTRUCTIONS},
-            {"role": "user", "content": json!({
-                "command_query": query.command_query,
-                "question": query.question,
-                "output_context": query.output_context,
-                "language": language,
-                "platform": platform
-            }).to_string()}
+            {"role": "user", "content": input}
         ]
     });
 
@@ -63,53 +68,33 @@ pub fn ask(
         .send_json(&body)
         .map_err(|error| format!("模型请求失败：{error}"))?;
     let mut reader = BufReader::new(response.body_mut().as_reader());
-    let mut data = String::new();
     let mut stopped = false;
     loop {
-        let mut line = String::new();
-        if reader
-            .read_line(&mut line)
-            .map_err(|error| format!("模型响应不完整：读取流失败（{error}）"))?
-            == 0
-        {
-            return Err("模型响应不完整：流意外结束".into());
+        let event = sse::read_event(&mut reader)?;
+        if event.data == "[DONE]" {
+            if !stopped {
+                return Err("模型响应不完整：缺少正常完成原因".into());
+            }
+            return output.finish().map_err(Into::into);
         }
-        let line = line.trim_end_matches(['\r', '\n']);
-        if line.is_empty() {
-            if data.is_empty() {
+        let chunk: Value =
+            serde_json::from_str(&event.data).map_err(|_| "模型响应不完整：无效流式事件")?;
+        if chunk.get("error").is_some() {
+            return Err("模型响应不完整：流内错误".into());
+        }
+        for choice in chunk["choices"].as_array().into_iter().flatten() {
+            if choice["index"] != 0 {
                 continue;
             }
-            if data == "[DONE]" {
-                if !stopped {
-                    return Err("模型响应不完整：缺少正常完成原因".into());
-                }
-                return output.finish().map_err(Into::into);
+            if let Some(text) = choice["delta"]["content"].as_str() {
+                output.push(text)?;
             }
-            let chunk: Value =
-                serde_json::from_str(&data).map_err(|_| "模型响应不完整：无效流式事件")?;
-            if chunk.get("error").is_some() {
-                return Err("模型响应不完整：流内错误".into());
-            }
-            for choice in chunk["choices"].as_array().into_iter().flatten() {
-                if choice["index"] != 0 {
-                    continue;
+            if let Some(reason) = choice["finish_reason"].as_str() {
+                if reason != "stop" {
+                    return Err(format!("模型响应不完整：结束原因 {reason}").into());
                 }
-                if let Some(text) = choice["delta"]["content"].as_str() {
-                    output.push(text)?;
-                }
-                if let Some(reason) = choice["finish_reason"].as_str() {
-                    if reason != "stop" {
-                        return Err(format!("模型响应不完整：结束原因 {reason}").into());
-                    }
-                    stopped = true;
-                }
+                stopped = true;
             }
-            data.clear();
-        } else if let Some(value) = line.strip_prefix("data:") {
-            if !data.is_empty() {
-                data.push('\n');
-            }
-            data.push_str(value.strip_prefix(' ').unwrap_or(value));
         }
     }
 }
