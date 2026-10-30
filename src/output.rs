@@ -5,6 +5,7 @@ pub struct Lines<W> {
     writer: W,
     pending: String,
     has_text: bool,
+    displayed: bool,
 }
 
 impl<W: Write> Lines<W> {
@@ -13,6 +14,7 @@ impl<W: Write> Lines<W> {
             writer,
             pending: String::new(),
             has_text: false,
+            displayed: false,
         }
     }
 
@@ -23,10 +25,20 @@ impl<W: Write> Lines<W> {
             while let Some(end) = self.pending.find('\n') {
                 self.writer.write_all(&self.pending.as_bytes()[..=end])?;
                 self.writer.flush()?;
+                self.displayed = true;
                 self.pending.drain(..=end);
             }
         }
         Ok(())
+    }
+
+    pub fn reset_before_retry(&mut self) -> bool {
+        if self.displayed {
+            return false;
+        }
+        self.pending.clear();
+        self.has_text = false;
+        true
     }
 
     pub fn finish(&mut self) -> io::Result<()> {

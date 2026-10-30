@@ -1,8 +1,9 @@
 mod anthropic;
+mod compatibility;
 mod sse;
 
 use std::error::Error;
-use std::io::BufReader;
+use std::io::{BufRead, BufReader};
 use std::time::Duration;
 
 use serde_json::{Value, json};
@@ -47,30 +48,154 @@ pub fn ask(
         "platform": platform
     })
     .to_string();
-    if matches!(config.api_type, ApiType::Anthropic) {
-        return anthropic::ask(config, INSTRUCTIONS, &input, output);
-    }
     let url = format!("{}/chat/completions", config.base_url.trim_end_matches('/'));
-    let body = json!({
-        "model": config.model,
-        "stream": true,
-        "messages": [
-            {"role": "system", "content": INSTRUCTIONS},
-            {"role": "user", "content": input}
-        ]
-    });
+    let body = if matches!(config.api_type, ApiType::Anthropic) {
+        json!({"model":config.model,"stream":true,"max_tokens":4096,"system":INSTRUCTIONS,"messages":[{"role":"user","content":input}]})
+    } else {
+        json!({
+            "model": config.model,
+            "stream": true,
+            "messages": [
+                {"role": "system", "content": INSTRUCTIONS},
+                {"role": "user", "content": input}
+            ]
+        })
+    };
 
-    let mut response = ureq::post(&url)
-        .config()
-        .timeout_global(Some(Duration::from_secs(60)))
-        .build()
-        .header("Authorization", format!("Bearer {}", config.api_key))
-        .send_json(&body)
-        .map_err(|error| format!("模型请求失败：{error}"))?;
+    let mut body = body;
+    loop {
+        let response = if matches!(config.api_type, ApiType::Anthropic) {
+            anthropic::request(config, &body)?
+        } else {
+            ureq::post(&url)
+                .config()
+                .timeout_global(Some(Duration::from_secs(60)))
+                .http_status_as_error(false)
+                .build()
+                .header("Authorization", format!("Bearer {}", config.api_key))
+                .send_json(&body)
+                .map_err(|error| format!("模型请求失败：{error}"))?
+        };
+        let result = read_response(&config.api_type, response, output, body["stream"] == true);
+        if body["stream"] == true
+            && result
+                .as_ref()
+                .is_err_and(|error| error.is::<compatibility::UnsupportedStreaming>())
+            && output.reset_before_retry()
+        {
+            eprintln!("ruask: 服务明确不支持流式，回退一次非流式请求");
+            body["stream"] = json!(false);
+            continue;
+        }
+        return result;
+    }
+}
+
+fn read_response(
+    api_type: &ApiType,
+    mut response: ureq::http::Response<ureq::Body>,
+    output: &mut Lines<impl std::io::Write>,
+    streaming: bool,
+) -> Result<(), Box<dyn Error>> {
+    if !response.status().is_success() {
+        let status = response.status().as_u16();
+        let text = response.body_mut().read_to_string().unwrap_or_default();
+        let error = serde_json::from_str::<Value>(&text)
+            .unwrap_or_else(|_| json!({"error":{"message":text}}));
+        if matches!(status, 400 | 404 | 422 | 501) && compatibility::stream_unsupported(&error) {
+            return Err(Box::new(compatibility::UnsupportedStreaming {
+                status: Some(status),
+            }));
+        }
+        return Err(format!(
+            "模型请求失败：HTTP {status}（{}）",
+            compatibility::failure_kind(&error, Some(status))
+        )
+        .into());
+    }
+    let declared_json = !streaming
+        || response
+            .headers()
+            .get("content-type")
+            .and_then(|value| value.to_str().ok())
+            .is_some_and(|value| {
+                value
+                    .split(';')
+                    .next()
+                    .unwrap_or_default()
+                    .trim()
+                    .eq_ignore_ascii_case("application/json")
+            });
     let mut reader = BufReader::new(response.body_mut().as_reader());
+    if declared_json || starts_json(&mut reader)? {
+        let answer: Value =
+            serde_json::from_reader(&mut reader).map_err(|_| "无法读取模型响应 JSON")?;
+        if answer.get("error").is_some() {
+            return Err(compatibility::stream_error(&answer));
+        }
+        let result = if matches!(api_type, ApiType::Anthropic) {
+            anthropic::write_message(&answer, output)
+        } else {
+            write_openai_message(&answer, output)
+        };
+        if result.is_ok() && streaming {
+            eprintln!("ruask: 服务返回完整 JSON 回答，实际使用非流式响应");
+        }
+        return result;
+    }
+    if matches!(api_type, ApiType::Anthropic) {
+        anthropic::read(&mut reader, output)
+    } else {
+        read_openai_stream(&mut reader, output)
+    }
+}
+
+// Inspect only the first non-whitespace byte; SSE still reaches the line reader incrementally.
+fn starts_json(reader: &mut impl BufRead) -> Result<bool, Box<dyn Error>> {
+    loop {
+        let bytes = reader
+            .fill_buf()
+            .map_err(|error| format!("模型响应不完整：读取流失败（{error}）"))?;
+        if bytes.is_empty() {
+            return Err("模型响应不完整：流意外结束".into());
+        }
+        let whitespace = bytes
+            .iter()
+            .take_while(|byte| byte.is_ascii_whitespace())
+            .count();
+        if let Some(byte) = bytes.get(whitespace) {
+            return Ok(matches!(byte, b'{' | b'['));
+        }
+        reader.consume(whitespace);
+    }
+}
+
+fn write_openai_message(
+    answer: &Value,
+    output: &mut Lines<impl std::io::Write>,
+) -> Result<(), Box<dyn Error>> {
+    let choice = answer["choices"]
+        .as_array()
+        .and_then(|choices| choices.first())
+        .ok_or("模型响应中没有回答")?;
+    if choice["finish_reason"] != "stop" {
+        return Err("模型响应不完整：缺少正常完成原因".into());
+    }
+    output.push(
+        choice["message"]["content"]
+            .as_str()
+            .ok_or("模型响应中没有文本回答")?,
+    )?;
+    output.finish().map_err(Into::into)
+}
+
+fn read_openai_stream(
+    reader: &mut impl BufRead,
+    output: &mut Lines<impl std::io::Write>,
+) -> Result<(), Box<dyn Error>> {
     let mut stopped = false;
     loop {
-        let event = sse::read_event(&mut reader)?;
+        let event = sse::read_event(reader)?;
         if event.data == "[DONE]" {
             if !stopped {
                 return Err("模型响应不完整：缺少正常完成原因".into());
@@ -80,7 +205,7 @@ pub fn ask(
         let chunk: Value =
             serde_json::from_str(&event.data).map_err(|_| "模型响应不完整：无效流式事件")?;
         if chunk.get("error").is_some() {
-            return Err("模型响应不完整：流内错误".into());
+            return Err(compatibility::stream_error(&chunk));
         }
         for choice in chunk["choices"].as_array().into_iter().flatten() {
             if choice["index"] != 0 {

@@ -1,31 +1,23 @@
 use std::error::Error;
-use std::io::BufReader;
+use std::io::BufRead;
 use std::time::Duration;
 
-use serde_json::{Value, json};
+use serde_json::Value;
 
 use crate::config::Config;
 use crate::output::Lines;
 
-use super::sse;
+use super::{compatibility, sse};
 
-pub(super) fn ask(
+pub(super) fn request(
     config: &Config,
-    instructions: &str,
-    input: &str,
-    output: &mut Lines<impl std::io::Write>,
-) -> Result<(), Box<dyn Error>> {
+    body: &Value,
+) -> Result<ureq::http::Response<ureq::Body>, Box<dyn Error>> {
     let url = format!("{}/messages", config.base_url.trim_end_matches('/'));
-    let body = json!({
-        "model": config.model,
-        "max_tokens": 4096,
-        "system": instructions,
-        "messages": [{"role":"user", "content":input}],
-        "stream": true,
-    });
     let mut request = ureq::post(&url)
         .config()
         .timeout_global(Some(Duration::from_secs(60)))
+        .http_status_as_error(false)
         .build()
         .header("Authorization", format!("Bearer {}", config.api_key))
         .header("anthropic-version", "2026-10-21");
@@ -38,36 +30,27 @@ pub(super) fn ask(
         }
         request = request.header("anthropic-workspace-id", workspace);
     }
-    let mut response = request
-        .send_json(&body)
-        .map_err(|error| format!("模型请求失败：{error}"))?;
-    if response
-        .headers()
-        .get("content-type")
-        .and_then(|value| value.to_str().ok())
-        .is_some_and(|value| {
-            value.split(';').next().unwrap_or_default().trim() == "application/json"
-        })
-    {
-        let message: Value = response
-            .body_mut()
-            .read_json()
-            .map_err(|_| "无法读取 Anthropic JSON 回答")?;
-        return write_message(&message, output);
-    }
-    let mut reader = BufReader::new(response.body_mut().as_reader());
+    request
+        .send_json(body)
+        .map_err(|error| format!("模型请求失败：{error}").into())
+}
+
+pub(super) fn read(
+    reader: &mut impl BufRead,
+    output: &mut Lines<impl std::io::Write>,
+) -> Result<(), Box<dyn Error>> {
     let mut started = false;
     let mut block: Option<(u64, bool)> = None;
     let mut stopped = false;
     loop {
-        let event = sse::read_event(&mut reader)?;
+        let event = sse::read_event(reader)?;
         let chunk: Value = serde_json::from_str(&event.data)
             .map_err(|_| "模型响应不完整：无效 Anthropic 流式事件")?;
         if event.name != chunk["type"].as_str().unwrap_or_default() {
             return Err("模型响应不完整：Anthropic 事件名称与类型不一致".into());
         }
         match event.name.as_str() {
-            "error" => return Err("模型响应不完整：Anthropic 流内错误".into()),
+            "error" => return Err(compatibility::stream_error(&chunk)),
             "message_start" => {
                 if started || chunk["message"]["role"] != "assistant" {
                     return Err("模型响应不完整：无效 Anthropic 消息开始".into());
@@ -134,7 +117,7 @@ pub(super) fn ask(
     }
 }
 
-fn write_message(
+pub(super) fn write_message(
     message: &Value,
     output: &mut Lines<impl std::io::Write>,
 ) -> Result<(), Box<dyn Error>> {

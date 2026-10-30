@@ -53,10 +53,12 @@
 1. `ask()`：附加共同的命令行领域指令，按显式配置选择协议；OpenAI 将指令放在 system 消息，Anthropic 放在顶层 system。
 2. `model/sse.rs` 按空行读取完整 SSE 事件，两类协议各自解释 data JSON，不直接显示协议内容。
 3. OpenAI 要求 `stop` 完成原因与 `[DONE]`；`model/anthropic.rs` 处理 named SSE 的消息、文本块与结束状态，并可解析普通 JSON 的文本块。异常 EOF、截断、流内错误返回不完整错误。
-4. Anthropic 使用 Bearer 认证、固定 API 版本 `2026-10-21` 和必要的 max_tokens；非单 workspace 密钥另由 ANTHROPIC_WORKSPACE_ID 提供元数据。
+4. `read_response()` 区分 HTTP 错误、普通 JSON 与 SSE；完整 JSON 直接复用并写 stderr 提醒。
+5. `model/compatibility.rs` 只把明确的 stream 能力拒绝变成可回退错误。`ask()` 在尚未展示正文时最多切换一次 stream=false，模型、地址和查询保持一致；普通错误和部分输出后失败不重试。
+6. Anthropic 使用 Bearer 认证、固定 API 版本 `2026-10-21` 和必要的 max_tokens；非单 workspace 密钥另由 ANTHROPIC_WORKSPACE_ID 提供元数据。
 
 `src/output.rs` 的 `Lines` 接收正文片段，只缓冲尚未完成的行；每行写出后立即刷新。
-正常结束才输出无换行尾行；失败时未完成的尾行不冒充完整内容。
+正常结束才输出无换行尾行；失败时未完成的尾行不冒充完整内容。兼容回退只能清除尚未展示的片段，已展示内容禁止重放。
 
 主流程只需要知道这两个入口：
 

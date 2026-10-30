@@ -262,7 +262,10 @@ fn native_json_parses_only_text_blocks_with_a_normal_stop_reason() {
         String::from_utf8(output.stdout).unwrap(),
         "Explain output:\n  cargo check 🦀\n"
     );
-    assert!(output.stderr.is_empty(), "{:?}", output.stderr);
+    assert_eq!(
+        String::from_utf8_lossy(&output.stderr),
+        "ruask: 服务返回完整 JSON 回答，实际使用非流式响应\n"
+    );
     response.assert();
 }
 

@@ -260,7 +260,11 @@ api_key = "anthropic-secret"
             command.env("RUASK_API_TYPE", value);
         }
         let output = command.output().unwrap();
-        assert_success(&output);
+        assert!(output.status.success(), "{output:?}");
+        assert_eq!(
+            String::from_utf8_lossy(&output.stderr),
+            "ruask: 服务返回完整 JSON 回答，实际使用非流式响应\n"
+        );
         assert_eq!(output.stdout, b"git status\n");
         response.assert();
     }
