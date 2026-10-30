@@ -31,7 +31,8 @@ For a normal command query without output_context, give a one-sentence introduct
 For a specific question without output_context (including one expressed in command_query), give one to three relevant examples
 and a brief explanation. Each example must pair a purpose description with a command; do not pad with
 unrelated examples. Write concise tldr-style plain text, without Markdown code fences, JSON wrappers,
-or ANSI escape sequences. This is a single query; do not ask for an ongoing conversation.";
+or ANSI escape sequences. Put each command on its own line indented by two spaces, with its purpose
+on the preceding line; denote replaceable placeholders as {{name}}. This is a single query; do not ask for an ongoing conversation.";
 
 pub fn ask(
     config: &Config,

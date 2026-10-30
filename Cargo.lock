@@ -734,6 +734,7 @@ dependencies = [
 name = "ruask"
 version = "0.1.0"
 dependencies = [
+ "libc",
  "mockito",
  "serde",
  "serde_json",

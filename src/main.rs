@@ -35,6 +35,8 @@ stdin 作为原始输出上下文，读到结束后解读含义、明显错误�
   -q, --question <字符串>  附带问题，也可独立使用
   -L, --language <en|zh>   结果语言：英文或简体中文（覆盖文件与 locale）
   -p, --platform <平台>    目标平台：linux / osx / macos（默认当前主机）
+  --color <auto|always|never>  颜色：auto 按 stdout 是否终端判断；NO_COLOR 非空时关闭自动颜色
+                            always 显式启用（覆盖 NO_COLOR），never 始终纯文本
   --init-config           创建用户配置模板，保留已有文件
   -h, --help               显示帮助";
 
@@ -79,7 +81,8 @@ fn run() -> Result<(), Box<dyn Error>> {
         Some(platform) => platform,
         None => Platform::host()?,
     };
-    let mut output = output::Lines::new(io::stdout().lock());
+    let color = args.color.enabled(io::stdout().is_terminal());
+    let mut output = output::Lines::new(io::stdout().lock(), color);
     model::ask(&config, &query, language, platform, &mut output)
 }
 
@@ -101,6 +104,7 @@ struct Arguments {
     platform: Option<Platform>,
     help: bool,
     init_config: bool,
+    color: output::Color,
 }
 
 impl Arguments {
@@ -122,6 +126,10 @@ impl Arguments {
                 "-p" | "--platform" => {
                     let value = option_value(&arg, &mut args)?;
                     parsed.platform = Some(Platform::parse(&value)?);
+                }
+                "--color" => {
+                    let value = option_value(&arg, &mut args)?;
+                    parsed.color = output::Color::parse(&value)?;
                 }
                 "-q" | "--question" => {
                     let value = option_value(&arg, &mut args)?;
@@ -167,6 +175,7 @@ fn option_value(
                     | "-h"
                     | "--help"
                     | "--init-config"
+                    | "--color"
             )
         })
         .ok_or_else(|| format!("选项 {option} 需要一个字符串值").into())
