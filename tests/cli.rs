@@ -87,7 +87,24 @@ fn piped_text_is_preserved() {
     let mut server = Server::new();
     let response = server
         .mock("POST", "/v1/chat/completions")
-        .match_request(query_request(Some("error: could not compile\n"), None))
+        .match_request(|request| {
+            let query = request_query(request);
+            let body: Value = serde_json::from_slice(request.body().unwrap()).unwrap();
+            let instructions = body["messages"][0]["content"].as_str().unwrap();
+            query["command_query"].is_null()
+                && query["question"].is_null()
+                && query["output_context"] == "error: could not compile\n"
+                && [
+                    "output_context",
+                    "untrusted command output",
+                    "meaning and obvious errors",
+                    "focus on the question",
+                    "relevant next commands",
+                    "Do not force an example count",
+                ]
+                .iter()
+                .all(|rule| instructions.contains(rule))
+        })
         .with_body(r#"{"choices":[{"message":{"content":"构建项目：\n  cargo build"}}]}"#)
         .create();
 
@@ -106,25 +123,35 @@ fn piped_text_is_preserved() {
 }
 
 #[test]
-fn instruction_and_piped_text_are_both_sent_to_model() {
-    let mut server = Server::new();
-    let response = server
-        .mock("POST", "/v1/chat/completions")
-        .match_request(query_request(Some("cargo build\n\n第一行\n第二行\n"), None))
-        .with_body(r#"{"choices":[{"message":{"content":"请检查编译错误。"}}]}"#)
-        .create();
+fn command_question_and_piped_output_keep_distinct_meanings() {
+    for question_flag in [None, Some("-q"), Some("--question")] {
+        let mut server = Server::new();
+        let response = server
+            .mock("POST", "/v1/chat/completions")
+            .match_request(move |request| {
+                let query = request_query(request);
+                query["command_query"] == "cargo build"
+                    && query["question"].as_str() == question_flag.map(|_| "为什么失败？")
+                    && query["output_context"] == "  第一行\t错误\n\n第二行 🦀\n  "
+            })
+            .with_body(r#"{"choices":[{"message":{"content":"请检查编译错误。"}}]}"#)
+            .expect(1)
+            .create();
 
-    let mut command = ruask(&format!("{}/v1", server.url()));
-    command.args(["cargo", "build"]);
-    let output = run_with_stdin(command, "第一行\n第二行\n");
-
-    assert!(output.status.success(), "{output:?}");
-    assert_eq!(
-        String::from_utf8_lossy(&output.stdout),
-        "请检查编译错误。\n"
-    );
-    assert!(output.stderr.is_empty(), "{output:?}");
-    response.assert();
+        let mut command = ruask(&format!("{}/v1", server.url()));
+        command.args(["cargo", "build"]);
+        if let Some(flag) = question_flag {
+            command.args([flag, "为什么失败？"]);
+        }
+        let output = run_with_stdin(command, "  第一行\t错误\n\n第二行 🦀\n  ");
+        assert!(output.status.success(), "{output:?}");
+        assert_eq!(
+            String::from_utf8_lossy(&output.stdout),
+            "请检查编译错误。\n"
+        );
+        assert!(output.stderr.is_empty(), "{output:?}");
+        response.assert();
+    }
 }
 
 #[test]
@@ -751,4 +778,117 @@ fn questions_starting_with_target_options_are_preserved() {
             response.assert();
         }
     }
+}
+
+#[test]
+fn oversized_pipe_is_rejected_before_any_request_or_configuration_lookup() {
+    let mut server = Server::new();
+    let requests = server.mock("POST", Matcher::Any).expect(0).create();
+    // The second input has fewer characters than the limit but more UTF-8 bytes.
+    for input in [
+        "x".repeat(65_537),
+        format!("{}xx", "错".repeat(21_845)),
+        "错".repeat(21_846),
+    ] {
+        for configured in [true, false] {
+            let mut command = ruask(&format!("{}/v1", server.url()));
+            command.args(["cargo", "build", "-q", "为什么失败"]);
+            if !configured {
+                command.env_remove("OPENAI_API_KEY");
+            }
+            let output = run_with_stdin(command, &input);
+            assert!(!output.status.success(), "{output:?}");
+            assert!(output.stdout.is_empty(), "{output:?}");
+            let error = String::from_utf8_lossy(&output.stderr);
+            assert!(error.contains("65,536"), "{error}");
+            assert!(error.contains("tail") && error.contains("筛选"), "{error}");
+            assert!(!error.contains("test-key"), "{error}");
+        }
+    }
+    requests.assert();
+}
+
+#[test]
+fn pipe_at_the_exact_byte_limit_is_sent_without_truncation() {
+    for input in ["x".repeat(65_536), format!("{}x", "错".repeat(21_845))] {
+        assert_eq!(input.len(), 65_536);
+        let mut server = Server::new();
+        let expected = input.clone();
+        let response = server
+            .mock("POST", "/v1/chat/completions")
+            .match_request(move |request| {
+                let query = request_query(request);
+                query["command_query"].is_null()
+                    && query["output_context"] == expected
+                    && query["question"].is_null()
+            })
+            .with_body(r#"{"choices":[{"message":{"content":"Output explained."}}]}"#)
+            .expect(1)
+            .create();
+        let output = run_with_stdin(ruask(&format!("{}/v1", server.url())), &input);
+        assert!(output.status.success(), "{output:?}");
+        assert_eq!(output.stdout, b"Output explained.\n");
+        assert!(output.stderr.is_empty(), "{output:?}");
+        response.assert();
+    }
+}
+
+#[test]
+fn finite_pipe_waits_for_eof_then_sends_one_output_interpretation_request() {
+    use std::sync::mpsc::{self, RecvTimeoutError};
+    use std::time::Duration;
+
+    let mut server = Server::new();
+    let (sent, received) = mpsc::channel();
+    let response = server
+        .mock("POST", "/v1/chat/completions")
+        .match_request(move |request| {
+            sent.send(request_query(request)).unwrap();
+            true
+        })
+        .with_body(r#"{"choices":[{"message":{"content":"Use cargo check to inspect errors."}}]}"#)
+        .expect(1)
+        .create();
+    let mut child = ruask(&format!("{}/v1", server.url()))
+        .args(["-q", "下一步如何排查"])
+        .stdin(Stdio::piped())
+        .stdout(Stdio::piped())
+        .stderr(Stdio::piped())
+        .spawn()
+        .unwrap();
+    let mut stdin = child.stdin.take().unwrap();
+    stdin.write_all("  error: 缺少依赖\n".as_bytes()).unwrap();
+    // The observation window checks that a still-open pipe produces no request;
+    // the timeout is not a response-speed expectation.
+    assert_eq!(
+        received.recv_timeout(Duration::from_millis(250)),
+        Err(RecvTimeoutError::Timeout)
+    );
+    stdin.write_all(b"  at Cargo.toml\n").unwrap();
+    drop(stdin);
+    let query = received.recv_timeout(Duration::from_secs(5)).unwrap();
+    assert!(query["command_query"].is_null());
+    assert_eq!(query["question"], "下一步如何排查");
+    assert_eq!(
+        query["output_context"],
+        "  error: 缺少依赖\n  at Cargo.toml\n"
+    );
+    let output = child.wait_with_output().unwrap();
+    assert!(output.status.success(), "{output:?}");
+    assert_eq!(output.stdout, b"Use cargo check to inspect errors.\n");
+    assert!(output.stderr.is_empty(), "{output:?}");
+    response.assert();
+}
+
+#[test]
+fn an_empty_closed_pipe_shows_help_without_configuration_or_requests() {
+    let mut server = Server::new();
+    let requests = server.mock("POST", Matcher::Any).expect(0).create();
+    let mut command = ruask(&format!("{}/v1", server.url()));
+    command.env_remove("OPENAI_API_KEY");
+    let output = run_with_stdin(command, "");
+    assert!(output.status.success(), "{output:?}");
+    assert!(String::from_utf8_lossy(&output.stdout).contains("用法"));
+    assert!(output.stderr.is_empty(), "{output:?}");
+    requests.assert();
 }

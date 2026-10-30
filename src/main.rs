@@ -11,12 +11,13 @@ use query::{Language, Platform};
 const HELP: &str = "用法：ruask [命令或命令行任务...] [-q \"附带问题\"]
       ruask -q \"命令行问题\"
       ruask -- 命令 [目标命令的选项...]
-      cat file | ruask [命令...]
+      cat file | ruask [命令...] [-q \"附带问题\"]
 
 查询命令、子命令或自然语言命令行任务，输出简短的纯文本速查结果。
 例如：ruask git commit -q \"如何修改上一次提交的信息\"
 目标命令自带选项时，请整体加引号或放在 -- 后。
-目前参数与 stdin 同时存在时以空行组合。
+stdin 作为原始输出上下文，读到结束后解读含义、明显错误及相关命令。
+管道上限为 65,536 字节（64 KiB）；超限请先筛选或使用 tail，不会截断或分段。
 
 用户配置：$XDG_CONFIG_HOME/ruask/config.toml（默认 $HOME/.config/ruask/config.toml）
 模型环境变量（可覆盖用户配置）：
@@ -167,33 +168,31 @@ fn read_query(args: &Arguments) -> Result<Option<query::Query>, Box<dyn Error>> 
         return Err("命令查询或附带问题不能为空白".into());
     }
 
-    let mut input = String::new();
-    let mut stdin = io::stdin();
+    const MAX_INPUT_BYTES: u64 = 65_536;
+    let stdin = io::stdin();
+    let mut bytes = Vec::new();
     if !stdin.is_terminal() {
-        stdin.read_to_string(&mut input)?;
+        stdin.take(MAX_INPUT_BYTES + 1).read_to_end(&mut bytes)?;
+        if bytes.len() as u64 > MAX_INPUT_BYTES {
+            return Err("stdin 超过 65,536 字节（64 KiB）；请先筛选或使用 tail 缩小输入后重试，不会截断或分段发送".into());
+        }
     }
+    let input = String::from_utf8(bytes).map_err(|_| "stdin 必须是有效 UTF-8 文本")?;
 
     if args.command.is_empty() && args.question.is_none() && input.is_empty() {
         return Ok(None);
     }
 
-    // 沿用现有管道组合方式；输出上下文的新语义由后续增量交付。
-    let prompt = if command.is_empty() {
-        input
-    } else if input.trim().is_empty() {
-        command
-    } else {
-        format!("{command}\n\n{input}")
-    };
-    if prompt.trim().is_empty() && args.question.is_none() {
+    if command.trim().is_empty() && input.trim().is_empty() && args.question.is_none() {
         return Err("命令查询或 stdin 不能为空白".into());
     }
     Ok(Some(query::Query {
-        command_query: if prompt.trim().is_empty() {
+        command_query: if args.command.is_empty() {
             None
         } else {
-            Some(prompt)
+            Some(command)
         },
         question: args.question.clone(),
+        output_context: if input.is_empty() { None } else { Some(input) },
     }))
 }

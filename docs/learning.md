@@ -7,7 +7,7 @@
 ```text
 命令行参数 + stdin
         ↓
-    组成命令查询与附带问题
+    保留命令查询、附带问题与原始输出上下文
         ↓
     读取模型配置
         ↓
@@ -23,7 +23,7 @@
 `--init-config` 创建用户配置模板并显示位置，保留已有文件，同样不要求模型凭据。
 无参数且没有 stdin 内容时也会成功显示帮助；显式空白查询则报错。
 
-当前增量只做单次命令查询，支持已知命令、子命令、自然语言任务与 `-q` / `--question` 附带问题。使用同步 HTTP 请求，让代码的阅读顺序就是执行顺序。
+当前增量支持单次命令查询与有限管道输出解读，支持已知命令、子命令、自然语言任务与 `-q` / `--question` 附带问题。使用同步 HTTP 请求，让代码的阅读顺序就是执行顺序。
 文件读取、重定向、文本筛选交给 Shell 提供的工具完成。
 
 ## 源码如何分工
@@ -34,10 +34,10 @@
 1. `main()`：成功返回 `0`，失败显示错误并返回非零值。
 2. `run()`：解析参数、查看帮助，或依次读取查询、读取配置、调用模型、输出回答。
 3. `Arguments::parse()`：识别问题、语言、平台选项与 `--` 分隔符，拒绝未知选项与缺少的值。
-4. `read_query()`：拒绝显式空白查询，读取管道，构造查询或表示应显示帮助的 `None`。
+4. `read_query()`：拒绝显式空白查询，读取最多 65,537 字节以检查 65,536 字节上限，构造查询或表示应显示帮助的 `None`。
 5. `write_output()`：输出文本，处理下游已经关闭的情况。
 
-`src/query.rs` 的 `Query` 分开保存命令查询与附带问题；`Language` 和 `Platform`
+`src/query.rs` 的 `Query` 分开保存命令查询、附带问题与原始输出上下文；`Language` 和 `Platform`
 限定首版支持的选择，`Language::from_locale()` 按 LANG/LANGUAGE 规则选择语言。
 `run()` 依次考虑 CLI 语言、文件偏好与 locale，并选择 CLI 平台或当前主机平台。
 
@@ -77,12 +77,13 @@ let answer = model::ask(&config, &query, language, platform)?;
 拥有的 `String`。`&String` 可以自动转换为函数需要的 `&str`。
 
 ```rust
-let mut input = String::new();
-stdin.read_to_string(&mut input)?;
+let mut bytes = Vec::new();
+stdin.take(MAX_INPUT_BYTES + 1).read_to_end(&mut bytes)?;
 ```
 
-`mut` 允许修改变量，`&mut input` 允许被调用的函数修改这段字符串。
-`read_to_string` 会一直读到 EOF，也就是输入结束。管道上游退出或文件读完会产生 EOF。
+`mut` 允许修改变量，`&mut bytes` 允许被调用的函数填充字节。
+`take` 限制最多读取上限加一字节；`read_to_end` 在读到 EOF 或达到该数量时返回。
+管道上游退出或文件读完会产生 EOF。多出的一个字节用于检测超限，检查通过后再解码 UTF-8。
 程序先用 `is_terminal()` 判断输入是否来自终端，避免没有管道时等你手动输入。
 
 ### `Vec<String>`、切片和 `join`
@@ -93,8 +94,8 @@ stdin.read_to_string(&mut input)?;
 `Arguments` 将位置参数保存在 `Vec<String>` 中，问题选项单独保存。
 `args.command.join(" ")` 用空格连接位置参数，生成一个新的 `String`。
 
-当前命令查询和管道内容都有有效文本时，`format!("{command}\n\n{input}")`
-生成组合后的提问。`trim()` 只用于判空，原文仍保留。
+`Query` 将命令查询、附带问题和管道内容分别传给模型，避免把输出上下文当成命令或用户指令。
+`trim()` 只用于判空，原文仍保留。输出解读要求解释含义、明显错误与相关下一步命令，不凑示例数量。
 
 ### `Option` 和 `Result` 有什么区别
 

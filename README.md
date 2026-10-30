@@ -38,6 +38,7 @@ ruask -L zh -p linux "如何查看端口占用"
 ruask --language en --platform macos launchctl
 ruask "git commit --amend"
 ruask -- git commit --amend
+cat error.log | ruask cargo build -q "为什么失败，下一步如何排查"
 ruask git status > usage.txt
 ruask --help
 ```
@@ -125,9 +126,20 @@ ruask cargo
 模型指令限定为命令行用法与输出解读，不提供通用聊天；程序不检索文档、不执行建议命令，
 不保留跨调用的对话历史。测试验证请求契约，实际模型的回答质量取决于所用服务。
 
-现有 stdin 路径继续可用：`cat error.log | ruask` 传递原文；
-`cat error.log | ruask cargo build` 用一个空行组合位置参数与原文。
-有效内容的空格和换行会保留。管道输出上下文的独立语义与输入上限由后续增量实现。
+`cat error.log | ruask` 默认解释输出含义和明显错误，并给出相关下一步命令；
+`cat error.log | ruask cargo build -q "为什么失败"` 同时保留命令目标、附带问题和原始输出上下文，
+重点回答问题。输出上下文作为数据传递，保留有效 UTF-8 文本的空格、换行与 Unicode，
+输出解读不强行套用五例结构。
+
+有限管道读到 EOF 后发起一次查询，不持续分析日志。stdin 上限为 **65,536 字节（64 KiB）**，
+恰好达到允许；多字节文本按 UTF-8 字节数计量。超限在请求前报错，不截断、不自动分段，
+也不提供上限调整选项。先用筛选工具或 `tail` 缩小输入再重试，例如：
+
+```sh
+tail -n 100 error.log | ruask -q "如何排查这些错误"
+```
+
+按行筛选后仍需保证总字节数不超限；没有内容的 stdin 不会产生额外查询。
 
 - stdout 只包含回答，并在末尾追加一个换行；帮助与配置初始化分别输出帮助和配置位置。
 - 无参数且没有 stdin 内容时显示简短帮助，成功退出。帮助与无效输入不需要模型凭据，也不发请求。

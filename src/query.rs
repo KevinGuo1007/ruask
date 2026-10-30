@@ -53,9 +53,10 @@ impl Platform {
     }
 }
 
-// 分开传递命令查询与附带问题，避免把 -q 的语义变成普通位置参数。
+// 查询、附带问题和原始输出上下文各自保留语义。
 #[derive(Serialize)]
 pub struct Query {
     pub command_query: Option<String>,
     pub question: Option<String>,
+    pub output_context: Option<String>,
 }
