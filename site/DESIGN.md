@@ -86,3 +86,16 @@
 | 卡片 / 按钮 | 角标伸长、箭头右移、主题图标旋转切换、复制图标形变为对勾 |
 
 `prefers-reduced-motion: reduce` 时：所有入场动画直接显示终态，终端直接显示完整输出，ASCII 静止，视频不自动播放，光点不渲染。
+
+## 4. Logo（`public/brand/`）
+
+终端提示符图标：深色圆角底板（`#141824 → #0b0e14`，1px 6% 白色描边），`>` 为粉 → 紫 → 蓝渐变（`#f78cc6 → #c792ea → #82aaff`），光标条为青 → 绿渐变（`#7fdbca → #c3e88d`）。这是全站唯一使用渐变的地方，其余界面仍只用 `--blueprint` 一种强调色。
+
+| 文件 | 用途 |
+| --- | --- |
+| `ruask-logo.svg` | 图标（也是 `assets/favicon.svg`），64 网格，纯路径 |
+| `ruask-wordmark-light.svg` / `ruask-wordmark-dark.svg` | 图标 + 文字，文字为 IBM Plex Mono 600 转曲；分别用于浅色 / 深色背景 |
+| `ruask-logo-512.png` / `apple-touch-icon.png` | PNG 版本（512 / 180） |
+| `ruask-social.png` | 1280×640 社交分享图（og:image，也可上传为 GitHub Social preview） |
+
+最小使用尺寸 16px；图标周围至少留出图标宽度 1/4 的空白；不要改动渐变方向或给文字加渐变。
