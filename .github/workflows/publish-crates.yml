@@ -1,0 +1,28 @@
+# 由 release.yml 中 dist 生成的 custom-publish-crates 任务调用：
+# GitHub Release 建好之后，把同一个 tag 对应的源码发布到 crates.io。
+# 需要仓库 secret CARGO_REGISTRY_TOKEN（crates.io → Account Settings → API Tokens，
+# 权限选 publish-new 与 publish-update，范围限定为 ruask）。
+name: Publish to crates.io
+
+on:
+  workflow_call:
+    inputs:
+      plan:
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    env:
+      CARGO_REGISTRY_TOKEN: ${{ secrets.CARGO_REGISTRY_TOKEN }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: dtolnay/rust-toolchain@stable
+      - name: Publish
+        run: cargo publish --locked
