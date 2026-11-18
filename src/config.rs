@@ -13,6 +13,7 @@ const TEMPLATE: &str = r#"api_type = "openai" # openai / anthropic
 base_url = "https://your-service.example/v1"
 model = "your-model"
 api_key = "YOUR_API_KEY"
+# thinking = "disabled" # enabled / disabled；仅用于支持 thinking.type 的 OpenAI 兼容服务
 
 [anthropic]
 base_url = "https://your-anthropic-service.example/v1"
@@ -71,6 +72,7 @@ pub struct Config {
     pub base_url: String,
     pub api_key: String,
     pub model: String,
+    pub thinking: Option<String>,
 }
 
 pub enum ApiType {
@@ -93,6 +95,14 @@ struct ProviderConfig {
     base_url: Option<String>,
     api_key: Option<String>,
     model: Option<String>,
+    thinking: Option<String>,
+}
+
+/// 仅读取文件中的结果语言，供本地 tldr 直出使用（不要求模型凭据）；任何错误都留给 `load` 报告。
+pub fn file_language() -> Option<String> {
+    let path = config_path().ok()??;
+    let file: FileConfig = toml::from_str(&fs::read_to_string(path).ok()?).ok()?;
+    file.language
 }
 
 pub fn load() -> Result<Config, Box<dyn Error>> {
@@ -128,12 +138,30 @@ pub fn load() -> Result<Config, Box<dyn Error>> {
         ),
         _ => return Err("RUASK_API_TYPE 或配置 api_type 必须为 openai 或 anthropic".into()),
     };
+    // This extension is provider-specific. Never send it by default or read
+    // OPENAI_THINKING when the native Anthropic protocol is selected.
+    let thinking = if matches!(api_type, ApiType::Openai) {
+        let value = match env::var("OPENAI_THINKING") {
+            Ok(value) => Some(value),
+            Err(env::VarError::NotPresent) => provider.thinking,
+            Err(_) => return Err("OPENAI_THINKING 必须为 enabled 或 disabled".into()),
+        };
+        match value.as_deref() {
+            None | Some("enabled" | "disabled") => value,
+            Some(_) => {
+                return Err("OPENAI_THINKING 或 openai.thinking 必须为 enabled 或 disabled".into());
+            }
+        }
+    } else {
+        None
+    };
     Ok(Config {
         language: file.language,
         api_type,
         base_url: setting(names[0], provider.base_url, path.as_deref())?,
         api_key: setting(names[1], provider.api_key, path.as_deref())?,
         model: setting(names[2], provider.model, path.as_deref())?,
+        thinking,
     })
 }
 

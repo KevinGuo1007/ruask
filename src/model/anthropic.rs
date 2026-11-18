@@ -1,6 +1,5 @@
 use std::error::Error;
 use std::io::BufRead;
-use std::time::Duration;
 
 use serde_json::Value;
 
@@ -12,27 +11,30 @@ use super::{compatibility, sse};
 pub(super) fn request(
     config: &Config,
     body: &Value,
+    output: &mut Lines<impl std::io::Write>,
 ) -> Result<ureq::http::Response<ureq::Body>, Box<dyn Error>> {
     let url = format!("{}/messages", config.base_url.trim_end_matches('/'));
-    let mut request = ureq::post(&url)
-        .config()
-        .timeout_global(Some(Duration::from_secs(60)))
-        .http_status_as_error(false)
-        .build()
-        .header("Authorization", format!("Bearer {}", config.api_key))
-        .header("anthropic-version", "2026-10-21");
-    if let Some(workspace) = std::env::var_os("ANTHROPIC_WORKSPACE_ID") {
-        let workspace = workspace
-            .into_string()
-            .map_err(|_| "ANTHROPIC_WORKSPACE_ID 必须是有效 Unicode 文本")?;
-        if workspace.trim().is_empty() {
-            return Err("ANTHROPIC_WORKSPACE_ID 不能为空白；不需要时请取消设置".into());
+    let workspace = match std::env::var_os("ANTHROPIC_WORKSPACE_ID") {
+        Some(workspace) => {
+            let workspace = workspace
+                .into_string()
+                .map_err(|_| "ANTHROPIC_WORKSPACE_ID 必须是有效 Unicode 文本")?;
+            if workspace.trim().is_empty() {
+                return Err("ANTHROPIC_WORKSPACE_ID 不能为空白；不需要时请取消设置".into());
+            }
+            Some(workspace)
         }
-        request = request.header("anthropic-workspace-id", workspace);
-    }
-    request
-        .send_json(body)
-        .map_err(|error| format!("模型请求失败：{error}").into())
+        None => None,
+    };
+    super::send(&url, output, || {
+        let mut request = super::post(&url)
+            .header("Authorization", format!("Bearer {}", config.api_key))
+            .header("anthropic-version", "2026-10-21");
+        if let Some(workspace) = &workspace {
+            request = request.header("anthropic-workspace-id", workspace);
+        }
+        request.send_json(body)
+    })
 }
 
 pub(super) fn read(
