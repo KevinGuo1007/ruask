@@ -564,6 +564,7 @@ fn terminal_output_at_width(mut command: Command, columns: u16) -> std::process:
         ws_ypixel: 0,
     };
     // openpty initializes two owned descriptors; neither is shared with another owner.
+    // The window size is passed as a raw pointer: glibc takes `*const winsize`, macOS `*mut winsize`.
     assert_eq!(
         unsafe {
             libc::openpty(
@@ -571,7 +572,7 @@ fn terminal_output_at_width(mut command: Command, columns: u16) -> std::process:
                 &mut slave,
                 std::ptr::null_mut(),
                 std::ptr::null_mut(),
-                &mut dimensions,
+                &raw mut dimensions,
             )
         },
         0
