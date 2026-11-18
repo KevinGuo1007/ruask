@@ -14,8 +14,7 @@
 <p>
   <a href="https://ruask.vercel.app"><img src="https://img.shields.io/website?url=https%3A%2F%2Fruask.vercel.app&label=website&up_message=ruask.vercel.app&down_message=offline&up_color=brightgreen&logo=vercel" alt="Website"></a>
   <a href="https://github.com/KevinGuo1007/ruask/stargazers"><img src="https://img.shields.io/github/stars/KevinGuo1007/ruask?style=flat&logo=github&color=blue" alt="GitHub stars"></a>
-  <a href="https://github.com/KevinGuo1007/ruask/commits/main"><img src="https://img.shields.io/github/last-commit/KevinGuo1007/ruask?label=last%20commit&logo=git&logoColor=white&color=orange" alt="Last commit"></a>
-  <a href="#license"><img src="https://img.shields.io/badge/license-MIT%20OR%20Apache--2.0-blue" alt="License: MIT OR Apache-2.0"></a>
+  <a href="#license"><img src="https://img.shields.io/badge/license-MIT-blue" alt="License: MIT"></a>
   <a href="https://doc.rust-lang.org/edition-guide/rust-2024/index.html"><img src="https://img.shields.io/badge/rust-2024%20edition-orange?logo=rust" alt="Rust 2024 edition"></a>
   <img src="https://img.shields.io/badge/platform-macOS%20%7C%20Linux-lightgrey?logo=linux&logoColor=white" alt="Platform: macOS | Linux">
 </p>
@@ -170,8 +169,6 @@ Not yet on crates.io, Homebrew or as prebuilt binaries. Windows is out of scope 
 
 ## License
 
-ruask is dual-licensed under [MIT](LICENSE-MIT) or [Apache-2.0](LICENSE-APACHE), at your option.
-
-Unless you explicitly state otherwise, any contribution intentionally submitted for inclusion in ruask, as defined in the Apache-2.0 license, shall be dual-licensed as above, without any additional terms or conditions.
+ruask is released under the [MIT License](LICENSE).
 
 Local page content comes from [tldr-pages](https://github.com/tldr-pages/tldr) under [CC BY 4.0](https://creativecommons.org/licenses/by/4.0/) and is not bundled with ruask.
