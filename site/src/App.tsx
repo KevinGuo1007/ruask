@@ -16,7 +16,7 @@ import { FlowDiagram } from "@/components/site/flow-diagram"
 import { GithubMark, Nav } from "@/components/site/nav"
 import { Terminal } from "@/components/site/terminal"
 import { VideoFrame } from "@/components/site/video-frame"
-import { INSTALL, REPO } from "@/content"
+import { INSTALL, INSTALL_METHODS, REPO } from "@/content"
 import { PrefsProvider, usePrefs } from "@/hooks/use-prefs"
 
 const EASE = [0.2, 0.7, 0.1, 1] as const
@@ -226,7 +226,24 @@ function QuickStart() {
       <Display className="mt-5 text-[clamp(1.8rem,3.2vw,2.6rem)] leading-tight">{t.start.title}</Display>
       <div className="relative mt-12">
         <span aria-hidden className="rule-dashed-y absolute top-8 bottom-8 left-4" />
-        {step(1, s1, <CodeBlock lines={INSTALL} />)}
+        {step(
+          1,
+          s1,
+          <Tabs defaultValue={INSTALL_METHODS[0].id}>
+            <TabsList variant="line">
+              {INSTALL_METHODS.map((m) => (
+                <TabsTrigger key={m.id} value={m.id}>
+                  {m.label}
+                </TabsTrigger>
+              ))}
+            </TabsList>
+            {INSTALL_METHODS.map((m) => (
+              <TabsContent key={m.id} value={m.id} className="mt-3">
+                <CodeBlock lines={m.lines} />
+              </TabsContent>
+            ))}
+          </Tabs>
+        )}
         {step(2, s2, <CodeBlock lines={["ruask --update-pages", "ruask --update-pages --from ./tldr.zip"]} />)}
         {step(
           3,
