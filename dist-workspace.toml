@@ -21,6 +21,8 @@ install-updater = false
 tap = "KevinGuo1007/homebrew-tap"
 # Release 成功后执行的发布任务；./publish-crates 对应 .github/workflows/publish-crates.yml
 publish-jobs = ["homebrew", "npm", "./publish-crates"]
+# publish-crates.yml 需要检出代码；dist 默认只给自定义发布任务 id-token/packages 权限
+github-custom-job-permissions = { "publish-crates" = { contents = "read" } }
 # 带 -rc / -alpha 等后缀的预发布版本只建 GitHub Release，不发布到 Homebrew、npm 与 crates.io
 publish-prereleases = false
 # dist 0.34.0 把自定义任务渲染成 `uses: $/.github/...`（GitHub 不认），
