@@ -1,0 +1,27 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>ruask — 在终端里速查命令</title>
+    <meta name="description" content="ruask 是 Rust 编写的命令行助手：先查本地 tldr 页面毫秒级直出，查不到再带着参考页询问你配置的模型；也能解读管道输入的报错。" />
+    <meta property="og:title" content="ruask — 在终端里速查命令" />
+    <meta property="og:description" content="Rust CLI：本地 tldr 直出 + 模型流式回答，支持 OpenAI 兼容与 Anthropic 协议，管道解读报错。" />
+    <meta property="og:type" content="website" />
+    <meta property="og:image" content="assets/ruask-launch-poster.jpg" />
+    <meta name="color-scheme" content="dark light" />
+    <link rel="icon" href="assets/favicon.svg" type="image/svg+xml" />
+    <script>
+      // apply saved/system theme before first paint (no tracking: localStorage only)
+      try {
+        var t = localStorage.getItem("ruask-theme")
+        if (t !== "light" && t !== "dark") t = matchMedia("(prefers-color-scheme: light)").matches ? "light" : "dark"
+        if (t === "dark") document.documentElement.classList.add("dark")
+      } catch (e) {}
+    </script>
+  </head>
+  <body>
+    <div id="root"></div>
+    <script type="module" src="/src/main.tsx"></script>
+  </body>
+</html>
