@@ -50,7 +50,7 @@ api_key = "YOUR_API_KEY"
 协议优先级为 `RUASK_API_TYPE` → 文件 `api_type` → `openai`。
 `openai` 表示 OpenAI 兼容协议，不根据模型名或服务域名猜测协议。
 `anthropic` 使用原生 Messages，请求在顶层发送 `system` 指令、用户消息与 `max_tokens=4096`。
-两类协议均默认流式，复用完整行展示；不会因为模型名含 `claude` 改变所选协议。
+两类协议均默认流式，共用同一渲染路径（说明与用途逐字、命令整行）；不会因为模型名含 `claude` 改变所选协议。
 
 Anthropic 发送 `Authorization: Bearer <api_key>` 和 `anthropic-version: 2026-10-21`。
 使用未绑定单个 workspace 的密钥时，另设 `ANTHROPIC_WORKSPACE_ID`，作为
