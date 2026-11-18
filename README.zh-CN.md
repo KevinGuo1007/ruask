@@ -12,13 +12,12 @@
 <p>简短命令毫秒级显示本地 tldr 页面；其他问题带着参考文档，流式询问你配置的模型。</p>
 
 <p>
-  <a href="https://ruask.vercel.app"><img src="https://img.shields.io/website?url=https%3A%2F%2Fruask.vercel.app&label=website&up_message=ruask.vercel.app&down_message=offline&up_color=f78cc6&logo=vercel&style=for-the-badge&labelColor=161b22" alt="Website"></a>
-  <a href="https://github.com/KevinGuo1007/ruask/stargazers"><img src="https://img.shields.io/github/stars/KevinGuo1007/ruask?logo=github&color=c792ea&style=for-the-badge&labelColor=161b22" alt="GitHub stars"></a>
-  <a href="https://github.com/KevinGuo1007/ruask/commits/main"><img src="https://img.shields.io/github/last-commit/KevinGuo1007/ruask?label=last%20commit&color=82aaff&style=for-the-badge&labelColor=161b22" alt="Last commit"></a>
-  <br>
-  <a href="#许可证"><img src="https://img.shields.io/badge/license-MIT%20OR%20Apache--2.0-7fdbca?style=for-the-badge&labelColor=161b22" alt="License: MIT OR Apache-2.0"></a>
-  <a href="https://doc.rust-lang.org/edition-guide/rust-2024/index.html"><img src="https://img.shields.io/badge/rust-2024%20edition-c3e88d?logo=rust&style=for-the-badge&labelColor=161b22" alt="Rust 2024 edition"></a>
-  <img src="https://img.shields.io/badge/platform-macOS%20%7C%20Linux-e8c372?logo=linux&logoColor=white&style=for-the-badge&labelColor=161b22" alt="Platform: macOS | Linux">
+  <a href="https://ruask.vercel.app"><img src="https://img.shields.io/website?url=https%3A%2F%2Fruask.vercel.app&label=website&up_message=ruask.vercel.app&down_message=offline&up_color=brightgreen&logo=vercel" alt="Website"></a>
+  <a href="https://github.com/KevinGuo1007/ruask/stargazers"><img src="https://img.shields.io/github/stars/KevinGuo1007/ruask?style=flat&logo=github&color=blue" alt="GitHub stars"></a>
+  <a href="https://github.com/KevinGuo1007/ruask/commits/main"><img src="https://img.shields.io/github/last-commit/KevinGuo1007/ruask?label=last%20commit&logo=git&logoColor=white&color=orange" alt="Last commit"></a>
+  <a href="#许可证"><img src="https://img.shields.io/badge/license-MIT%20OR%20Apache--2.0-blue" alt="License: MIT OR Apache-2.0"></a>
+  <a href="https://doc.rust-lang.org/edition-guide/rust-2024/index.html"><img src="https://img.shields.io/badge/rust-2024%20edition-orange?logo=rust" alt="Rust 2024 edition"></a>
+  <img src="https://img.shields.io/badge/platform-macOS%20%7C%20Linux-lightgrey?logo=linux&logoColor=white" alt="Platform: macOS | Linux">
 </p>
 
 <p>
