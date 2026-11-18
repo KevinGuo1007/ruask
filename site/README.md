@@ -39,17 +39,19 @@ npm run preview    # 预览 dist/
 
 | 文件 | 说明 |
 | --- | --- |
-| `ruask-launch.mp4` | 1920×1080，H.264，约 20.1s，优先加载 |
-| `ruask-launch.webm` | 同一成片的 VP9 版本，备用源 |
-| `ruask-launch-poster.jpg` | 封面帧（标题卡），1280×720 |
-| `ruask-demo.gif` | 终端演示动图，仓库 README 引用 |
+| `ruask-launch.{zh,en}.mp4` | 中文 / 英文成片，1920×1080，H.264，约 20s，优先加载；随页面语言切换 |
+| `ruask-launch.{zh,en}.webm` | 同一成片的 VP9 版本，备用源 |
+| `ruask-launch-poster.{zh,en}.jpg` | 封面帧（标题卡），1280×720 |
+| `ruask-demo.{en,zh}.gif` | 终端演示动图，分别由 `README.md` / `README.zh-CN.md` 引用 |
 
 视频静音循环；滚动到一半以上可见时自动播放，离开时暂停；手动暂停后不再自动播放；开启「减少动态效果」时不自动播放。
 
 重新录制后替换上述文件，并重新生成封面帧：
 
 ```sh
-ffmpeg -y -ss 1.6 -i public/assets/ruask-launch.mp4 -frames:v 1 -vf scale=1280:-1 -q:v 4 public/assets/ruask-launch-poster.jpg
+for l in zh en; do
+  ffmpeg -y -ss 1.2 -i public/assets/ruask-launch.$l.mp4 -frames:v 1 -vf scale=1280:-1 -q:v 4 public/assets/ruask-launch-poster.$l.jpg
+done
 ```
 
 ## 部署（Vercel）

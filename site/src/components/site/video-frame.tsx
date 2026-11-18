@@ -2,6 +2,7 @@ import * as React from "react"
 import { useInView, useReducedMotion } from "motion/react"
 
 import { CornerMarks } from "@/components/ui/card"
+import { usePrefs } from "@/hooks/use-prefs"
 
 /*
  * Launch video inside a drafting frame with dimension annotations.
@@ -12,6 +13,7 @@ export function VideoFrame({ label }: { label: string }) {
   const inView = useInView(video, { amount: 0.5 })
   const reduce = useReducedMotion()
   const userPaused = React.useRef(false)
+  const { lang } = usePrefs()
   const auto = React.useRef(false)
 
   React.useEffect(() => {
@@ -23,7 +25,7 @@ export function VideoFrame({ label }: { label: string }) {
       auto.current = true
       v.pause()
     }
-  }, [inView, reduce])
+  }, [inView, reduce, lang])
 
   return (
     <div className="group/card relative pt-7 pl-0 md:pl-9">
@@ -53,7 +55,8 @@ export function VideoFrame({ label }: { label: string }) {
           loop
           playsInline
           preload="metadata"
-          poster="assets/ruask-launch-poster.jpg"
+          key={lang}
+          poster={`assets/ruask-launch-poster.${lang}.jpg`}
           width={1920}
           height={1080}
           aria-label={label}
@@ -65,8 +68,8 @@ export function VideoFrame({ label }: { label: string }) {
             userPaused.current = false
           }}
         >
-          <source src="assets/ruask-launch.mp4" type="video/mp4" />
-          <source src="assets/ruask-launch.webm" type="video/webm" />
+          <source src={`assets/ruask-launch.${lang}.mp4`} type="video/mp4" />
+          <source src={`assets/ruask-launch.${lang}.webm`} type="video/webm" />
         </video>
       </div>
     </div>
