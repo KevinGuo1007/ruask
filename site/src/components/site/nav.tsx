@@ -53,7 +53,8 @@ export function Nav() {
     <header className="sticky top-0 z-50 border-b border-rule bg-background/85 backdrop-blur-md">
       <div className="mx-auto flex h-14 max-w-[1180px] items-center gap-6 px-5 sm:px-10">
         <a href="#top" className="flex items-center gap-2 font-mono text-[15px] font-medium tracking-tight">
-          <span className="text-signal">❯</span>ruask
+          <img src="brand/ruask-logo.svg" alt="" width={22} height={22} className="size-[22px]" />
+          ruask
         </a>
         <nav className="hidden items-center gap-5 md:flex" aria-label="Primary">
           {LINKS.map((id) => (
