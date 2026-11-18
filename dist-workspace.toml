@@ -1,0 +1,29 @@
+[workspace]
+members = ["cargo:."]
+
+# Config for 'dist'
+[dist]
+# The preferred dist version to use in CI (Cargo.toml SemVer syntax)
+cargo-dist-version = "0.34.0"
+# CI backends to support
+ci = "github"
+# The installers to generate for each app
+installers = ["shell", "npm", "homebrew"]
+# ruask 只支持 macOS 与 Linux；Linux 同时提供 glibc 与静态 musl 版本
+targets = ["aarch64-apple-darwin", "x86_64-apple-darwin", "aarch64-unknown-linux-gnu", "x86_64-unknown-linux-gnu", "aarch64-unknown-linux-musl", "x86_64-unknown-linux-musl"]
+# 安装脚本放置二进制的位置：优先 $XDG_BIN_HOME，否则 ~/.local/bin
+install-path = ["$XDG_BIN_HOME/", "~/.local/bin"]
+# Where to host releases
+hosting = "github"
+# Whether to install an updater program
+install-updater = false
+# Homebrew tap 仓库（需要先在 GitHub 上创建空仓库 KevinGuo1007/homebrew-tap）
+tap = "KevinGuo1007/homebrew-tap"
+# Release 成功后执行的发布任务；./publish-crates 对应 .github/workflows/publish-crates.yml
+publish-jobs = ["homebrew", "npm", "./publish-crates"]
+# 带 -rc / -alpha 等后缀的预发布版本只建 GitHub Release，不发布到 Homebrew、npm 与 crates.io
+publish-prereleases = false
+# dist 0.34.0 把自定义任务渲染成 `uses: $/.github/...`（GitHub 不认），
+# release.yml 里已手工改成 `./`；因此跳过 dist 对 CI 文件的一致性检查。
+# 升级 dist 或改配置后运行 `dist generate --mode ci`，并重新做这一处替换。
+allow-dirty = ["ci"]
