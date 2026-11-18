@@ -73,4 +73,4 @@ vercel deploy --prod
 
 - 功能变化时改 `src/content.ts`（中英两份）；终端演示场景也在其中，使用 ruask 的行格式（`#` 标题、`>` 简介、`-` 用途、整行反引号命令；站点额外用 `!` 表示危险警告、`~` 表示暗色状态行）。
 - 加 shadcn 组件：`npx shadcn@latest add <name>`，然后按 DESIGN.md 的规则改写样式（等宽标签、4px 圆角、1px 线、无投影）。CLI 偶尔会把 `cn` 的导入写成 `from "cn"`，需改回 `@/lib/utils`。
-- 许可证文案在 `src/content.ts` 的 `footer.license`，与仓库根目录的 `LICENSE-MIT` / `LICENSE-APACHE` 保持一致。
+- 许可证文案在 `src/content.ts` 的 `footer.license`，与仓库根目录的 `LICENSE`（MIT）保持一致。

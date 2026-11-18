@@ -259,7 +259,7 @@ export const copy = {
       ],
     },
     footer: {
-      license: "以 MIT 或 Apache-2.0 双许可证开源。本站不使用追踪脚本，字体随站点自托管。",
+      license: "以 MIT 许可证开源。本站不使用追踪脚本，字体随站点自托管。",
       tldr: "演示中的本地页面内容来自 tldr-pages（CC BY 4.0）。",
     },
     toggles: { theme: "切换主题", lang: "切换语言" },
@@ -367,7 +367,7 @@ export const copy = {
       ],
     },
     footer: {
-      license: "Dual-licensed under MIT or Apache-2.0. No tracking; fonts are self-hosted.",
+      license: "MIT licensed. No tracking; fonts are self-hosted.",
       tldr: "Local page content in the demo comes from tldr-pages (CC BY 4.0).",
     },
     toggles: { theme: "Toggle theme", lang: "Switch language" },

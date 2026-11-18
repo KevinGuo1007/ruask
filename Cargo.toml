@@ -3,7 +3,7 @@ name = "ruask"
 version = "0.1.0"
 edition = "2024"
 description = "A command-line assistant for command lookup and command output explanation"
-license = "MIT OR Apache-2.0"
+license = "MIT"
 repository = "https://github.com/KevinGuo1007/ruask"
 homepage = "https://ruask.vercel.app"
 readme = "README.md"
@@ -12,8 +12,7 @@ include = [
     "/Cargo.lock",
     "/README.md",
     "/README.zh-CN.md",
-    "/LICENSE-MIT",
-    "/LICENSE-APACHE",
+    "/LICENSE",
     "/src/**/*.rs",
     "/tests/**/*.rs",
     "/docs/development.md",

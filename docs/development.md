@@ -70,6 +70,6 @@ cargo package --list --allow-dirty --offline
 cargo package --allow-dirty --locked --offline
 ```
 
-`Cargo.toml` 的 `include` 白名单只收录包元数据、README、许可证文件（`LICENSE-MIT`、`LICENSE-APACHE`）、Rust 源码和测试、贡献者文档与行为参考（`docs/*.md` 中列出的四份）；`site/` 官网源码不进入 Cargo 包。增加必要资源时同步更新白名单并检查实际清单；不要把本地凭据、研究数据或缓存放入包。Cargo 会额外生成规范化元数据及原始 manifest 副本。
+`Cargo.toml` 的 `include` 白名单只收录包元数据、README、许可证文件 `LICENSE`（MIT）、Rust 源码和测试、贡献者文档与行为参考（`docs/*.md` 中列出的四份）；`site/` 官网源码不进入 Cargo 包。增加必要资源时同步更新白名单并检查实际清单；不要把本地凭据、研究数据或缓存放入包。Cargo 会额外生成规范化元数据及原始 manifest 副本。
 
 正式开源发布前需确定许可证并加入许可证文件及对应 Cargo 字段；当前没有选择许可证。还需确定发行版本、验证目标主机并决定发布渠道。包检查成功不表示已发布或完成这些决定。

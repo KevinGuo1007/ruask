@@ -14,8 +14,7 @@
 <p>
   <a href="https://ruask.vercel.app"><img src="https://img.shields.io/website?url=https%3A%2F%2Fruask.vercel.app&label=website&up_message=ruask.vercel.app&down_message=offline&up_color=brightgreen&logo=vercel" alt="Website"></a>
   <a href="https://github.com/KevinGuo1007/ruask/stargazers"><img src="https://img.shields.io/github/stars/KevinGuo1007/ruask?style=flat&logo=github&color=blue" alt="GitHub stars"></a>
-  <a href="https://github.com/KevinGuo1007/ruask/commits/main"><img src="https://img.shields.io/github/last-commit/KevinGuo1007/ruask?label=last%20commit&logo=git&logoColor=white&color=orange" alt="Last commit"></a>
-  <a href="#许可证"><img src="https://img.shields.io/badge/license-MIT%20OR%20Apache--2.0-blue" alt="License: MIT OR Apache-2.0"></a>
+  <a href="#许可证"><img src="https://img.shields.io/badge/license-MIT-blue" alt="License: MIT"></a>
   <a href="https://doc.rust-lang.org/edition-guide/rust-2024/index.html"><img src="https://img.shields.io/badge/rust-2024%20edition-orange?logo=rust" alt="Rust 2024 edition"></a>
   <img src="https://img.shields.io/badge/platform-macOS%20%7C%20Linux-lightgrey?logo=linux&logoColor=white" alt="Platform: macOS | Linux">
 </p>
@@ -170,8 +169,6 @@ cargo clippy --all-targets -- -D warnings
 
 ## 许可证
 
-ruask 以 [MIT](LICENSE-MIT) 或 [Apache-2.0](LICENSE-APACHE) 双许可证发布，任选其一。
-
-除非你明确声明，否则你有意提交给本项目的任何贡献，均按 Apache-2.0 许可证的定义，以上述双许可证授权，不附加任何其他条款或条件。
+ruask 以 [MIT 许可证](LICENSE)发布。
 
 本地页面内容来自 [tldr-pages](https://github.com/tldr-pages/tldr)，按 [CC BY 4.0](https://creativecommons.org/licenses/by/4.0/) 许可使用，不随 ruask 分发。
