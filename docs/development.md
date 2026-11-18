@@ -101,4 +101,6 @@ git tag v0.1.0 && git push origin v0.1.0  # 4. 触发发布
 
 crates.io 与 npm 的版本一经发布不能删除或覆盖，只能 yank / deprecate；新渠道或大改动先用 `v0.x.y-rc.1` 预发布演练。
 
-dist 0.34.0 会把自定义发布任务渲染成 `uses: $/.github/workflows/publish-crates.yml`，GitHub 无法识别；`release.yml` 已手工改成 `./`，并在 `dist-workspace.toml` 设置 `allow-dirty = ["ci"]` 跳过一致性检查。升级 dist 或修改配置后运行 `dist generate --mode ci`，再重新做这一处替换。
+dist 0.34.0 会把自定义发布任务渲染成 `uses: $/.github/workflows/publish-crates.yml`，GitHub 无法识别；`release.yml` 已手工改成 `./`，并在 `dist-workspace.toml` 设置 `allow-dirty = ["ci"]` 跳过一致性检查。升级 dist 或修改配置后，先临时删掉 `allow-dirty` 这一行（否则 dist 拒绝生成），运行 `dist generate --mode ci`，恢复该行并重新做这一处替换。
+
+`publish-crates.yml` 检出代码需要 `contents: read`，由 `github-custom-job-permissions` 授予；缺少时 GitHub 会以 startup failure 拒绝启动整个 `release.yml`，而且只在 Actions 网页上显示原因。
