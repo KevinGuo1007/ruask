@@ -72,4 +72,33 @@ cargo package --allow-dirty --locked --offline
 
 `Cargo.toml` 的 `include` 白名单只收录包元数据、README、许可证文件 `LICENSE`（MIT）、Rust 源码和测试、贡献者文档与行为参考（`docs/*.md` 中列出的四份）；`site/` 官网源码不进入 Cargo 包。增加必要资源时同步更新白名单并检查实际清单；不要把本地凭据、研究数据或缓存放入包。Cargo 会额外生成规范化元数据及原始 manifest 副本。
 
-正式开源发布前需确定许可证并加入许可证文件及对应 Cargo 字段；当前没有选择许可证。还需确定发行版本、验证目标主机并决定发布渠道。包检查成功不表示已发布或完成这些决定。
+包检查成功只说明源码包可以独立编译，不表示已经发布。
+
+## 发布
+
+发布由 [dist](https://github.com/axodotdev/cargo-dist)（cargo-dist）驱动，配置在 `dist-workspace.toml`，工作流在 `.github/workflows/release.yml`。推送形如 `v0.1.0` 的 tag 后，GitHub Actions 依次执行：
+
+1. 为 `aarch64`/`x86_64` 的 `apple-darwin`、`unknown-linux-gnu`、`unknown-linux-musl` 六个目标编译（`[profile.dist]` 继承 `release`），生成 `.tar.xz` 压缩包、`.sha256` 校验文件、`ruask-installer.sh`、Homebrew formula 和 npm 包。
+2. 创建 GitHub Release，上传上述产物。
+3. 发布：formula 推送到 `KevinGuo1007/homebrew-tap`，npm 包发布为 `ruask`，`publish-crates.yml` 把同一 tag 的源码发布到 crates.io。tag 带 `-rc.1` 这类后缀时只建预发布 Release，跳过这三项。
+
+首次发布前需要在 GitHub 仓库的 Settings → Secrets and variables → Actions 中添加：
+
+| Secret | 用途 | 获取方式 |
+| --- | --- | --- |
+| `HOMEBREW_TAP_TOKEN` | 推送 formula | 先创建公开空仓库 `KevinGuo1007/homebrew-tap`，再建一个只对该仓库有 Contents 读写权限的 fine-grained token |
+| `NPM_TOKEN` | 发布 npm 包 | npmjs.com → Access Tokens → Granular，权限 Read and write |
+| `CARGO_REGISTRY_TOKEN` | 发布到 crates.io | crates.io → Account Settings → API Tokens，范围 `publish-new`、`publish-update` |
+
+发版步骤：
+
+```sh
+# 1. 更新 Cargo.toml 的 version，提交并合入 main
+cargo package --locked                  # 2. 确认源码包可编译
+dist plan                               # 3. 预览产物清单
+git tag v0.1.0 && git push origin v0.1.0  # 4. 触发发布
+```
+
+crates.io 与 npm 的版本一经发布不能删除或覆盖，只能 yank / deprecate；新渠道或大改动先用 `v0.x.y-rc.1` 预发布演练。
+
+dist 0.34.0 会把自定义发布任务渲染成 `uses: $/.github/workflows/publish-crates.yml`，GitHub 无法识别；`release.yml` 已手工改成 `./`，并在 `dist-workspace.toml` 设置 `allow-dirty = ["ci"]` 跳过一致性检查。升级 dist 或修改配置后运行 `dist generate --mode ci`，再重新做这一处替换。

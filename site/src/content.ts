@@ -6,10 +6,21 @@ export type Lang = "zh" | "en"
 
 export const REPO = "https://github.com/KevinGuo1007/ruask"
 
-export const INSTALL = [
-  "git clone https://github.com/KevinGuo1007/ruask",
-  "cd ruask",
-  "cargo install --path .",
+export const INSTALL = ["brew install KevinGuo1007/tap/ruask"]
+
+/* Install channels shown as tabs in Quick start; all publish from the same
+ * GitHub Release (see ruask/docs/development.md, "Releasing"). */
+export const INSTALL_METHODS: { id: string; label: string; lines: string[] }[] = [
+  { id: "brew", label: "Homebrew", lines: INSTALL },
+  {
+    id: "shell",
+    label: "Shell",
+    lines: [
+      "curl --proto '=https' --tlsv1.2 -LsSf https://github.com/KevinGuo1007/ruask/releases/latest/download/ruask-installer.sh | sh",
+    ],
+  },
+  { id: "cargo", label: "Cargo", lines: ["cargo install ruask --locked"] },
+  { id: "npm", label: "npm", lines: ["npm install -g ruask"] },
 ]
 
 /* ---------- terminal demo scenes ----------
@@ -164,8 +175,8 @@ export const copy = {
       title1: "忘了命令怎么写？",
       title2: "在终端里问一句。",
       lead: "ruask 先查本机的 tldr 页面，命中就毫秒级直出；查不到或带着问题时，再把相关页面作为参考交给你配置的模型，流式逐行回答。也能把报错日志用管道交给它解读。",
-      install: "从源码安装",
-      installHint: "需要支持 Rust 2024 edition 的工具链；暂未发布到 crates.io。",
+      install: "安装",
+      installHint: "也可以用安装脚本、cargo 或 npm 安装，见快速开始。支持 macOS 与 Linux。",
       start: "快速开始",
       github: "GitHub",
       termNote: "示意输出：本地页面内容来自 tldr-pages，模型回答由你配置的服务生成，配色与布局由 ruask 本地渲染。",
@@ -220,7 +231,7 @@ export const copy = {
       kicker: "快速开始",
       title: "三分钟配好",
       steps: [
-        { t: "从源码安装", d: "确保 ~/.cargo/bin 在 PATH 中。" },
+        { t: "安装", d: "任选一种包管理器。预编译二进制覆盖 macOS 与 Linux 的 x86_64 / arm64；cargo 从源码编译，需要支持 Rust 2024 edition 的工具链。" },
         { t: "安装本地 tldr 页面（推荐）", d: "下载官方 tldr.zip 并与校验文件核对，只保留英文与简体中文页面。离线可用 --from 指定已下载的归档。" },
         { t: "配置模型", d: "--init-config 创建 0600 权限的模板，不需要凭据、不发请求。程序在 base_url 后追加 /chat/completions 或 /messages，不会自动补 /v1。" },
         { t: "开始提问", d: "只查命令名时走本地页面，其余查询交给模型。" },
@@ -272,8 +283,8 @@ export const copy = {
       title1: "Forgot the flags?",
       title2: "Just ask your terminal.",
       lead: "ruask checks your local tldr pages first and prints a hit in milliseconds. Otherwise it hands the relevant pages to your model as reference and streams a short answer. Pipe in an error log and it explains what went wrong.",
-      install: "Install from source",
-      installHint: "Needs a Rust toolchain with 2024 edition support. Not on crates.io yet.",
+      install: "Install",
+      installHint: "Or use the install script, cargo or npm — see Quick start. macOS and Linux.",
       start: "Get started",
       github: "GitHub",
       termNote: "Illustrative output: local pages come from tldr-pages, model answers from the service you configure; colors and layout are rendered locally by ruask.",
@@ -328,7 +339,7 @@ export const copy = {
       kicker: "Quick start",
       title: "Set up in three minutes",
       steps: [
-        { t: "Install from source", d: "Make sure ~/.cargo/bin is on your PATH." },
+        { t: "Install", d: "Pick any package manager. Prebuilt binaries cover macOS and Linux on x86_64 and arm64; cargo builds from source and needs a Rust toolchain with 2024 edition support." },
         { t: "Install local tldr pages (recommended)", d: "Downloads the official tldr.zip, verifies it, and keeps English and Simplified Chinese pages. Offline? Pass an archive with --from." },
         { t: "Configure a model", d: "--init-config writes a 0600 template — no credentials or requests needed. ruask appends /chat/completions or /messages to base_url and never adds /v1." },
         { t: "Ask away", d: "Command-only queries use local pages; everything else goes to the model." },
