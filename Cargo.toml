@@ -5,6 +5,7 @@ edition = "2024"
 description = "A command-line assistant for command lookup and command output explanation"
 license = "MIT OR Apache-2.0"
 repository = "https://github.com/KevinGuo1007/ruask"
+homepage = "https://ruask.vercel.app"
 readme = "README.md"
 include = [
     "Cargo.toml",

@@ -1,32 +1,70 @@
+<div align="center">
+
 # ruask
 
-在终端内查询命令、子命令或自然语言命令行任务，获得简短的速查结果。
+**在终端里问命令：简短命令毫秒级直出，自然语言问题流式回答。**
 
-## 开始使用
+Ask your terminal how to use a command — instant tldr pages for quick lookups, a streamed LLM answer for everything else.
 
-需要支持 Rust 2024 edition 的 Rust 工具链。
+[官网 / Website](https://ruask.vercel.app) · [快速开始](#快速开始) · [用法](#常用示例) · [配置](#用户配置) · [开发](docs/development.md)
+
+![license](https://img.shields.io/badge/license-MIT%20OR%20Apache--2.0-blue)
+![rust](https://img.shields.io/badge/rust-2024%20edition-orange)
+![platform](https://img.shields.io/badge/platform-macOS%20%7C%20Linux-lightgrey)
+
+<img src="site/public/assets/ruask-demo.gif" alt="ruask 终端演示" width="760">
+
+</div>
+
+## 为什么是 ruask
+
+- **简短命令毫秒级**：`ruask tar`、`ruask git commit` 这类只有命令名的查询直接显示本地 tldr 页面，不联网、不需要模型配置。
+- **问题交给模型，但带着文档问**：`ruask git commit -q "如何修改上一次提交信息"` 或 `ruask "如何查看占用 8080 端口的进程"` 会把相关 tldr 页面作为参考交给模型，减少编造选项。
+- **解释命令输出**：`cat error.log | ruask cargo build -q "为什么失败"` 结合命令、问题和原始输出回答。
+- **为终端而做**：流式逐字显示、按语义着色、示例编号、命令从不折行；重定向时输出纯文本，stdout 只含回答。
+- **安全的默认行为**：只显示命令、从不执行；常见不可逆命令（递归 `rm`、`git reset --hard`、`git push --force` 等）本地标注警告；不保留对话历史，不加载项目目录的 `.env`。
+- **两种协议**：OpenAI 兼容 Chat Completions 与 Anthropic 原生 Messages，环境变量或配置文件切换。
+
+## 快速开始
+
+需要支持 Rust 2024 edition 的 Rust 工具链，支持 macOS 和 Linux。
 
 ```sh
-cargo build --release
+git clone https://github.com/KevinGuo1007/ruask
+cd ruask
+cargo install --path .          # 安装到 ~/.cargo/bin，确保它在 PATH 中
 
-./target/release/ruask --init-config
-# 编辑上一步显示的配置文件，填入模型地址、密钥和名称。
-./target/release/ruask git commit
+ruask --update-pages            # 可选但推荐：下载并校验官方 tldr 页面
+ruask tar                       # 本地页面直出，无需任何配置
+
+ruask --init-config             # 创建配置模板（权限 0600）
+# 编辑显示的 config.toml，填入模型服务地址、密钥和模型名
+ruask "如何查找大于 100 MB 的文件"
 ```
 
-### 本地 tldr 页面（可选，推荐）
+也可以只构建不安装：`cargo build --release`，然后运行 `./target/release/ruask`。
+
+### 工作方式
+
+```text
+ruask 参数 / stdin
+   ├─ 只有命令名、无 -q、无 stdin，且本地有该命令的 tldr 页面 ──► 直接渲染页面（毫秒级，无需网络与凭据）
+   └─ 其他查询 ──► 命中命令时附上该命令页和同族相关页作为参考 ──► 流式请求模型 ──► 本地按行渲染
+```
+
+### 本地 tldr 页面
 
 ```sh
-ruask --update-pages            # 下载官方 tldr.zip，与官方校验文件核对后安装
-ruask --update-pages --from ./tldr.zip   # 使用已下载的归档（离线）
+ruask --update-pages                       # 下载官方 tldr.zip，与官方校验文件核对后安装
+ruask --update-pages --from ./tldr.zip     # 使用已下载的归档（离线）
 ```
 
 页面安装到 `$RUASK_TLDR_DIR`，未设置时为 `$XDG_DATA_HOME/ruask/tldr` 或 `$HOME/.local/share/ruask/tldr`，
 只保留英文与简体中文页面，并生成供参考检索使用的 `ruask-index.tsv`。安装后：
 
-- 只有命令名、没有 `-q` 和 stdin 的查询（如 `ruask tar`、`ruask git commit`）直接显示本地页面，
-  毫秒级，不需要网络和模型配置；页面只适用于另一个平台时会注明；首词拼写接近唯一页面名时
-  （如 `gti commit`）自动纠正并在 stderr 说明。末尾标注来源 `tldr-pages · CC BY 4.0`。
+- 只有命令名、没有 `-q` 和 stdin 的查询（如 `ruask tar`、`ruask git commit`）直接显示本地页面；
+  页面只适用于另一个平台时会注明；首词拼写接近唯一页面名时（如 `gti commit`）自动纠正并在 stderr 说明。
+  末尾标注来源 `tldr-pages · CC BY 4.0`。
 - 其余查询在命令命中页面时，把命令页、同族中与问题最相关的两页以及其余子命令页名作为
   `reference` 交给模型。
 - 没有安装页面时，所有查询保持纯模型路径。
@@ -34,29 +72,7 @@ ruask --update-pages --from ./tldr.zip   # 使用已下载的归档（离线）
 页面内容来自 [tldr-pages](https://github.com/tldr-pages/tldr)，按
 [CC BY 4.0](https://creativecommons.org/licenses/by/4.0/) 许可使用；ruask 不随包分发页面。
 
-`OPENAI_BASE_URL` / `ANTHROPIC_BASE_URL` 是对应协议的基础地址，包含服务所需的路径前缀。程序在后面追加
-`/chat/completions`（OpenAI 兼容协议）或 `/messages`（Anthropic 原生协议），
-地址末尾有无 `/` 都可以；网关中间路径保持不变，程序不自动补 `/v1`。地址、密钥和模型名称合并后均为必需。
-
-支持 OpenAI 兼容的 Chat Completions 与 Anthropic 原生 Messages 文本接口，默认发送一次流式请求。
-说明行和示例用途随到随显示（攒够 8 个字符后开始，未配对的反引号暂缓），命令、标题和围栏内容整行显示；
-正常结束时补齐没有换行的最后一行。每次模型请求的总超时为 60 秒。Anthropic 只展示文本内容块，忽略思考、工具与心跳数据；
-要求正常结束原因及消息结束事件，生成截断、异常 EOF 和流内错误均不能算成功。
-
-只有服务明确拒绝 stream 能力、且尚未展示回答时，才向相同服务、协议和模型
-自动回退一次非流式请求；回退前在 stderr 提醒，失败后不再重试。
-流式请求直接收到正常完整 JSON 回答时，直接复用该响应并在 stderr 提醒实际未使用流式，不另发请求。
-鉴权、限流/额度、超时、网络和普通参数错误均不作为不支持流式的证据；
-已展示部分回答后发生错误，保留已显示内容，标记不完整并以退出码 5 结束，不重放回答。
-stdout 仅包含回答，重定向保存时不会混入这些提醒；没有答案缓存或持久能力缓存。
-
-希望直接使用 `ruask` 命令时，可以安装到 Cargo 的二进制目录：
-
-```sh
-cargo install --path .
-```
-
-确保 Cargo 的二进制目录（通常是 `~/.cargo/bin`）在 `PATH` 中，然后使用：
+## 常用示例
 
 ```sh
 ruask cargo
@@ -74,6 +90,24 @@ ruask --language=en -pmacos launchctl   # 带值选项也可写成 --opt=值 或
 ruask --version                         # 版本与本地 tldr 页面状态
 ruask -h                                # 简短帮助；--help 为完整帮助，-L en 时为英文
 ```
+
+## 模型协议与流式行为
+
+`OPENAI_BASE_URL` / `ANTHROPIC_BASE_URL` 是对应协议的基础地址，包含服务所需的路径前缀。程序在后面追加
+`/chat/completions`（OpenAI 兼容协议）或 `/messages`（Anthropic 原生协议），
+地址末尾有无 `/` 都可以；网关中间路径保持不变，程序不自动补 `/v1`。地址、密钥和模型名称合并后均为必需。
+
+支持 OpenAI 兼容的 Chat Completions 与 Anthropic 原生 Messages 文本接口，默认发送一次流式请求。
+说明行和示例用途随到随显示（攒够 8 个字符后开始，未配对的反引号暂缓），命令、标题和围栏内容整行显示；
+正常结束时补齐没有换行的最后一行。每次模型请求的总超时为 60 秒。Anthropic 只展示文本内容块，忽略思考、工具与心跳数据；
+要求正常结束原因及消息结束事件，生成截断、异常 EOF 和流内错误均不能算成功。
+
+只有服务明确拒绝 stream 能力、且尚未展示回答时，才向相同服务、协议和模型
+自动回退一次非流式请求；回退前在 stderr 提醒，失败后不再重试。
+流式请求直接收到正常完整 JSON 回答时，直接复用该响应并在 stderr 提醒实际未使用流式，不另发请求。
+鉴权、限流/额度、超时、网络和普通参数错误均不作为不支持流式的证据；
+已展示部分回答后发生错误，保留已显示内容，标记不完整并以退出码 5 结束，不重放回答。
+stdout 仅包含回答，重定向保存时不会混入这些提醒；没有答案缓存或持久能力缓存。
 
 ## 用户配置
 
@@ -288,6 +322,7 @@ docs/
   development.md  开发入口、模块职责、术语与配置设计
   testing.md      离线回归、质量验收方法及未验证范围
   performance.md  可选观测、推理设置与性能结论的局限
+site/             项目官网（Vite + React），部署在 https://ruask.vercel.app
 ```
 
 建议从 [开发指南](docs/development.md) 开始，再沿着 `main → run` 阅读源码。
@@ -311,10 +346,18 @@ cargo clippy --all-targets -- -D warnings
 
 支持 `thinking.type` 的 OpenAI 兼容服务可使用 `OPENAI_THINKING=disabled ruask git status`，或在 `[openai]` 中保存 `thinking = "disabled"`（也支持 `enabled`）。环境变量覆盖文件；未设置时不发送此参数，原生 Anthropic 协议忽略它。其他服务需先确认支持该扩展。
 
-截至 2026-11-04，性能研究结论为 **INCONCLUSIVE**，继续保留现有默认行为。部分方案测得较低延迟，但尚未同时通过充分的正确性、完整回答质量和安全性验证，不能据此默认启用。观测字段和结果局限见[性能说明](docs/performance.md)。
+在支持该扩展的服务上关闭 thinking 通常能明显缩短首字时间；它不是标准参数，默认不发送。观测字段和结果局限见[性能说明](docs/performance.md)。
 
 ## 分发与发布状态
 
-仓库支持从源码构建和 `cargo install --path .` 安装。Cargo 包使用明确的文件白名单，包含源码、回归测试和贡献者文档；检查命令见[开发指南](docs/development.md#打包检查)。
+仓库支持从源码构建和 `cargo install --path .` 安装。Cargo 包使用明确的文件白名单，包含源码、回归测试、许可证和贡献者文档；检查命令见[开发指南](docs/development.md#打包检查)。
 
-正式开源发布前仍需维护者选择许可证并补充相应文件及 Cargo 元数据；当前未授予开源许可证，也未发布到 crates.io。发行版本、目标平台验收及分发渠道仍需确定。
+尚未发布到 crates.io，也没有 Homebrew 配方或预编译二进制。
+
+## 许可证
+
+ruask 以 [MIT](LICENSE-MIT) 或 [Apache-2.0](LICENSE-APACHE) 双许可证发布，任选其一。
+
+除非你明确声明，否则你有意提交给本项目的任何贡献，均按 Apache-2.0 许可证的定义，以上述双许可证授权，不附加任何其他条款或条件。
+
+本地 tldr 页面内容来自 [tldr-pages](https://github.com/tldr-pages/tldr)，按 CC BY 4.0 许可使用，不随 ruask 分发。
