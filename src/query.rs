@@ -1,6 +1,6 @@
 use serde::Serialize;
 
-#[derive(Clone, Copy, Serialize)]
+#[derive(Clone, Copy, PartialEq, Serialize)]
 #[serde(rename_all = "lowercase")]
 pub enum Language {
     En,
@@ -32,7 +32,7 @@ impl Language {
     }
 }
 
-#[derive(Clone, Copy, Serialize)]
+#[derive(Clone, Copy, PartialEq, Serialize)]
 #[serde(rename_all = "lowercase")]
 pub enum Platform {
     Linux,
@@ -59,4 +59,8 @@ pub struct Query {
     pub command_query: Option<String>,
     pub question: Option<String>,
     pub output_context: Option<String>,
+    /// 本地 tldr 参考（可选）；不是用户指令。
+    pub reference: Option<String>,
+    /// 本机环境摘要（shell、包管理器、所查命令是否已安装）；仅当目标平台为本机时提供。
+    pub environment: Option<serde_json::Value>,
 }

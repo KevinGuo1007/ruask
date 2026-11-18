@@ -494,7 +494,7 @@ fn instructions_define_the_command_line_reference_contract() {
 fn invalid_options_fail_locally_with_clear_errors() {
     for (args, expected) in [
         (vec!["--qusetion", "how to commit"], "未知选项 --qusetion"),
-        (vec!["git", "commit", "--amend"], "未知选项 --amend"),
+        (vec!["--amend", "git", "commit"], "未知选项 --amend"),
         (vec!["-x"], "未知选项 -x"),
         (vec!["-q"], "选项 -q 需要一个字符串值"),
         (
