@@ -8,16 +8,18 @@ repository = "https://github.com/KevinGuo1007/ruask"
 homepage = "https://ruask.vercel.app"
 readme = "README.md"
 include = [
-    "Cargo.toml",
-    "Cargo.lock",
-    "README.md",
-    "LICENSE-MIT",
-    "LICENSE-APACHE",
-    "src/**/*.rs",
-    "tests/**/*.rs",
-    "docs/development.md",
-    "docs/testing.md",
-    "docs/performance.md",
+    "/Cargo.toml",
+    "/Cargo.lock",
+    "/README.md",
+    "/README.zh-CN.md",
+    "/LICENSE-MIT",
+    "/LICENSE-APACHE",
+    "/src/**/*.rs",
+    "/tests/**/*.rs",
+    "/docs/development.md",
+    "/docs/testing.md",
+    "/docs/performance.md",
+    "/docs/reference.md",
 ]
 
 [dependencies]

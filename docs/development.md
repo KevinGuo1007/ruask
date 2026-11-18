@@ -1,6 +1,6 @@
 # 开发指南
 
-ruask 是用于命令速查和有限命令输出解读的 Rust CLI。先阅读 [README](../README.md)，再从 `src/main.rs` 的 `main()`、`run()` 进入调用链。需要支持 Rust 2024 edition 的工具链；`Cargo.lock` 应随应用仓库一起维护。
+ruask 是用于命令速查和有限命令输出解读的 Rust CLI。先阅读 [README](../README.zh-CN.md) 和[行为参考](reference.md)，再从 `src/main.rs` 的 `main()`、`run()` 进入调用链。需要支持 Rust 2024 edition 的工具链；`Cargo.lock` 应随应用仓库一起维护。
 
 ## 构建与检查
 
@@ -43,7 +43,7 @@ cargo clippy --locked --offline --all-targets -- -D warnings
 
 macOS/Linux 统一读取 `$XDG_CONFIG_HOME/ruask/config.toml`，默认 `$HOME/.config/ruask/config.toml`，使升级、安装渠道和工作目录不影响配置。`--init-config` 创建权限为 `0600` 的模板并保留已有文件。程序不加载 `.env` 或当前目录配置。
 
-协议通过 `RUASK_API_TYPE` → 文件 `api_type` → `openai` 选择；按所选协议逐字段合并环境变量和文件，不向另一组借用配置。显式空白值在请求前报错。结果语言依次采用 CLI、用户文件、locale 和英文兜底；目标平台默认主机，可用 CLI 覆盖。完整用法见 [README 的用户配置](../README.md#用户配置)。
+协议通过 `RUASK_API_TYPE` → 文件 `api_type` → `openai` 选择；按所选协议逐字段合并环境变量和文件，不向另一组借用配置。显式空白值在请求前报错。结果语言依次采用 CLI、用户文件、locale 和英文兜底；目标平台默认主机，可用 CLI 覆盖。完整用法见[行为参考的用户配置](reference.md#用户配置)。
 
 `thinking` 是显式可选的 OpenAI 兼容扩展，未设置就省略，原生 Anthropic 忽略；`reasoning_effort` 不是当前 CLI 的配置字段。配置错误不应打印凭据或原始配置内容。
 
@@ -70,6 +70,6 @@ cargo package --list --allow-dirty --offline
 cargo package --allow-dirty --locked --offline
 ```
 
-`Cargo.toml` 的 `include` 白名单只收录包元数据、README、许可证文件（`LICENSE-MIT`、`LICENSE-APACHE`）、Rust 源码和测试、三份贡献者文档；`site/` 官网源码不进入 Cargo 包。增加必要资源时同步更新白名单并检查实际清单；不要把本地凭据、研究数据或缓存放入包。Cargo 会额外生成规范化元数据及原始 manifest 副本。
+`Cargo.toml` 的 `include` 白名单只收录包元数据、README、许可证文件（`LICENSE-MIT`、`LICENSE-APACHE`）、Rust 源码和测试、贡献者文档与行为参考（`docs/*.md` 中列出的四份）；`site/` 官网源码不进入 Cargo 包。增加必要资源时同步更新白名单并检查实际清单；不要把本地凭据、研究数据或缓存放入包。Cargo 会额外生成规范化元数据及原始 manifest 副本。
 
 正式开源发布前需确定许可证并加入许可证文件及对应 Cargo 字段；当前没有选择许可证。还需确定发行版本、验证目标主机并决定发布渠道。包检查成功不表示已发布或完成这些决定。
