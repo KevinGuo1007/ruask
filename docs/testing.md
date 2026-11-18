@@ -17,9 +17,11 @@ cargo clippy --locked --offline --all-targets -- -D warnings
 | `tests/streaming.rs` | 服务等首行后才继续的握手、逐字节/Unicode 拆片、截断、断流和下游关闭 |
 | `tests/anthropic.rs` | 原生认证、请求字段、多内容块、忽略非正文与完整结束校验 |
 | `tests/compatibility.rs` | 明确 stream 拒绝后的一次回退、完整 JSON 复用、禁止普通错误或部分输出后重试 |
-| `tests/rendering.rs` | PTY/NO_COLOR、语义样式与复位、围栏、占位符、窄终端、单次格式提醒和即时展示 |
+| `tests/rendering.rs` | PTY/NO_COLOR、语义样式与复位、围栏、占位符、窄终端与按宽度折行、终端编号、单次格式提醒、整行与行内逐字展示 |
 | `tests/thinking.rs` | 显式推理配置、环境优先级、默认省略和协议隔离 |
 | `tests/trace.rs` | 默认关闭、计时顺序、隐私、回退/失败与命令候选标记 |
+| `tests/tldr.rs` | 本地直出、别名、跨平台提示、拼写纠正、危险命令标注、参考选择、环境字段与 `--update-pages` |
+| `tests/polish.rs` | `--version`、`--opt=值`/`-Lzh`、首次使用引导、连接与代理错误提示、`Accept-Encoding: identity`、stdin 与 PTY 等待提示、来源标识、tldr 助记符/注意行样式、目标命令选项直通、退出码、短帮助与英文帮助 |
 
 流式握手证明首行可在回答结束前显示；SGR 状态和字节断言验证样式与复制文本。测试通过不证明固定回答中的命令适用真实系统，也不证明任何云端服务的速度或质量。
 
