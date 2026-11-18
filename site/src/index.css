@@ -1,0 +1,206 @@
+@import "tailwindcss";
+@import "tw-animate-css";
+
+@import "@fontsource/ibm-plex-serif/300.css";
+@import "@fontsource/ibm-plex-serif/300-italic.css";
+@import "@fontsource/ibm-plex-serif/400-italic.css";
+@import "@fontsource/ibm-plex-sans/400.css";
+@import "@fontsource/ibm-plex-sans/500.css";
+@import "@fontsource/ibm-plex-mono/400.css";
+@import "@fontsource/ibm-plex-mono/500.css";
+
+@custom-variant dark (&:is(.dark *));
+
+/*
+ * ruask design system — "Blueprint Terminal"
+ * Layer 1: raw tokens (paper / ink / blueprint / terminal).  See DESIGN.md.
+ * Layer 2: shadcn semantic variables mapped onto layer 1, so every shadcn
+ *          component inherits the system without per-call overrides.
+ */
+:root {
+  /* paper & ink — light: warm drafting paper */
+  --paper: #f3f0e8;
+  --paper-raised: #fbf9f4;
+  --paper-sunken: #e9e5da;
+  --ink: #1b1c1f;
+  --ink-muted: #5d5b55;
+  --ink-faint: #8f8c84;
+  --rule: #d6d1c4;
+  --rule-strong: #b9b3a3;
+  --grid: color-mix(in oklab, var(--ink) 6%, transparent);
+
+  /* blueprint — the single brand accent */
+  --blueprint: #2346c8;
+  --blueprint-soft: color-mix(in oklab, var(--blueprint) 12%, transparent);
+  --on-blueprint: #ffffff;
+
+  /* terminal roles — mirror ruask's own renderer */
+  --term-bg: #16171b;
+  --term-fg: #dcd9d1;
+  --term-dim: #6f6d67;
+  --term-title: #c4a7ff;
+  --term-use: #8fd694;
+  --term-cmd: #7fd3e3;
+  --term-code: #e8c372;
+  --term-danger: #ff7b72;
+  --term-prompt: #8fd694;
+  /* signal: the prompt green, tuned for use on paper (not inside terminals) */
+  --signal: #2f7d3c;
+
+  /* shape & motion */
+  --radius: 0.25rem;
+  --ease-draft: cubic-bezier(0.2, 0.7, 0.1, 1);
+
+  /* shadcn mapping */
+  --background: var(--paper);
+  --foreground: var(--ink);
+  --card: var(--paper-raised);
+  --card-foreground: var(--ink);
+  --popover: var(--ink);
+  --popover-foreground: var(--paper);
+  --primary: var(--blueprint);
+  --primary-foreground: var(--on-blueprint);
+  --secondary: var(--paper-sunken);
+  --secondary-foreground: var(--ink);
+  --muted: var(--paper-sunken);
+  --muted-foreground: var(--ink-muted);
+  --accent: var(--blueprint-soft);
+  --accent-foreground: var(--ink);
+  --destructive: #c4372f;
+  --border: var(--rule);
+  --input: var(--rule-strong);
+  --ring: var(--blueprint);
+}
+
+.dark {
+  /* dark: ink-black drafting table, not blue-purple */
+  --paper: #0f1012;
+  --paper-raised: #15161a;
+  --paper-sunken: #1b1d21;
+  --ink: #ebe8e1;
+  --ink-muted: #a19e96;
+  --ink-faint: #6c6a64;
+  --rule: #26282d;
+  --rule-strong: #3a3d44;
+  --grid: color-mix(in oklab, var(--ink) 5%, transparent);
+
+  --blueprint: #9db6ff;
+  --blueprint-soft: color-mix(in oklab, var(--blueprint) 14%, transparent);
+  --on-blueprint: #0c1430;
+
+  --term-bg: #0b0c0e;
+  --signal: #8fd694;
+}
+
+@theme inline {
+  --font-serif: "IBM Plex Serif", "Songti SC", "Noto Serif SC", "Source Han Serif SC", serif;
+  --font-sans: "IBM Plex Sans", "PingFang SC", "Hiragino Sans GB", "Noto Sans SC", system-ui, sans-serif;
+  --font-mono: "IBM Plex Mono", "SFMono-Regular", Menlo, "PingFang SC", monospace;
+
+  --color-paper: var(--paper);
+  --color-paper-raised: var(--paper-raised);
+  --color-paper-sunken: var(--paper-sunken);
+  --color-ink: var(--ink);
+  --color-ink-muted: var(--ink-muted);
+  --color-ink-faint: var(--ink-faint);
+  --color-rule: var(--rule);
+  --color-rule-strong: var(--rule-strong);
+  --color-blueprint: var(--blueprint);
+  --color-blueprint-soft: var(--blueprint-soft);
+  --color-on-blueprint: var(--on-blueprint);
+  --color-term-bg: var(--term-bg);
+  --color-term-fg: var(--term-fg);
+  --color-term-dim: var(--term-dim);
+  --color-term-title: var(--term-title);
+  --color-term-use: var(--term-use);
+  --color-term-cmd: var(--term-cmd);
+  --color-term-code: var(--term-code);
+  --color-term-danger: var(--term-danger);
+  --color-term-prompt: var(--term-prompt);
+  --color-signal: var(--signal);
+
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-popover: var(--popover);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-destructive: var(--destructive);
+  --color-border: var(--border);
+  --color-input: var(--input);
+  --color-ring: var(--ring);
+
+  --radius-sm: calc(var(--radius) - 1px);
+  --radius-md: var(--radius);
+  --radius-lg: calc(var(--radius) + 2px);
+  --radius-xl: calc(var(--radius) + 4px);
+
+  --ease-draft: var(--ease-draft);
+}
+
+@layer base {
+  * {
+    @apply border-border outline-ring/50;
+  }
+  html {
+    scroll-behavior: smooth;
+    scroll-padding-top: 4.5rem;
+    color-scheme: light;
+  }
+  html.dark {
+    color-scheme: dark;
+  }
+  body {
+    @apply bg-background font-sans text-foreground antialiased;
+    font-size: 15px;
+    line-height: 1.7;
+    /* CJK must never be faux-italicised by serif italic headings */
+    font-synthesis: none;
+  }
+  ::selection {
+    background: var(--blueprint);
+    color: var(--on-blueprint);
+  }
+  @media (prefers-reduced-motion: reduce) {
+    html {
+      scroll-behavior: auto;
+    }
+  }
+}
+
+@layer components {
+  /* the drafting grid behind the page */
+  .bg-blueprint-grid {
+    background-image:
+      linear-gradient(var(--grid) 1px, transparent 1px),
+      linear-gradient(90deg, var(--grid) 1px, transparent 1px);
+    background-size: 24px 24px;
+  }
+  .rule-dashed {
+    background-image: linear-gradient(90deg, var(--rule-strong) 50%, transparent 0);
+    background-size: 8px 1px;
+    background-repeat: repeat-x;
+    height: 1px;
+  }
+  .rule-dashed-y {
+    background-image: linear-gradient(180deg, var(--rule-strong) 50%, transparent 0);
+    background-size: 1px 8px;
+    background-repeat: repeat-y;
+    width: 1px;
+  }
+  .hex-clip {
+    clip-path: polygon(10px 0, calc(100% - 10px) 0, 100% 50%, calc(100% - 10px) 100%, 10px 100%, 0 50%);
+  }
+  .scrollbar-thin {
+    scrollbar-width: thin;
+    scrollbar-color: var(--rule-strong) transparent;
+  }
+}
