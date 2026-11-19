@@ -229,12 +229,13 @@ export const copy = {
     },
     start: {
       kicker: "快速开始",
-      title: "三分钟配好",
+      title: "先离线试用，再接上模型",
       steps: [
         { t: "安装", d: "任选一种包管理器。预编译二进制覆盖 macOS 与 Linux 的 x86_64 / arm64；cargo 从源码编译，需要支持 Rust 2024 edition 的工具链。" },
-        { t: "安装本地 tldr 页面（推荐）", d: "下载官方 tldr.zip 并与校验文件核对，只保留英文与简体中文页面。离线可用 --from 指定已下载的归档。" },
+        { t: "下载本地 tldr 页面", d: "下载官方 tldr.zip 并与校验文件核对，只保留英文与简体中文页面。离线可用 --from 指定已下载的归档。" },
+        { t: "先试一下，无需 API Key", d: "只查命令名时直接显示本地页面：不联网、不调用模型、不需要任何配置。" },
         { t: "配置模型", d: "--init-config 创建 0600 权限的模板，不需要凭据、不发请求。程序在 base_url 后追加 /chat/completions 或 /messages，不会自动补 /v1。" },
-        { t: "开始提问", d: "只查命令名时走本地页面，其余查询交给模型。" },
+        { t: "带着问题问模型", d: "自然语言、附带问题和管道输入会带着相关 tldr 页面交给模型，流式逐行回答。" },
       ],
       cfgFile: "config.toml",
       cfgEnv: "环境变量",
@@ -337,12 +338,13 @@ export const copy = {
     },
     start: {
       kicker: "Quick start",
-      title: "Set up in three minutes",
+      title: "Try it offline, then add a model",
       steps: [
         { t: "Install", d: "Pick any package manager. Prebuilt binaries cover macOS and Linux on x86_64 and arm64; cargo builds from source and needs a Rust toolchain with 2024 edition support." },
-        { t: "Install local tldr pages (recommended)", d: "Downloads the official tldr.zip, verifies it, and keeps English and Simplified Chinese pages. Offline? Pass an archive with --from." },
+        { t: "Download the tldr pages", d: "Downloads the official tldr.zip, verifies it, and keeps English and Simplified Chinese pages. Offline? Pass an archive with --from." },
+        { t: "Try it, no API key needed", d: "Command-only queries print the local page: no network, no model, no configuration." },
         { t: "Configure a model", d: "--init-config writes a 0600 template — no credentials or requests needed. ruask appends /chat/completions or /messages to base_url and never adds /v1." },
-        { t: "Ask away", d: "Command-only queries use local pages; everything else goes to the model." },
+        { t: "Ask the model", d: "Plain-English tasks, focused questions and piped output go to the model with the matching tldr pages, streamed line by line." },
       ],
       cfgFile: "config.toml",
       cfgEnv: "Environment",

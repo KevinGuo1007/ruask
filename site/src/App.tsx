@@ -207,7 +207,7 @@ const CONFIG = (
 
 function QuickStart() {
   const { t, lang } = usePrefs()
-  const [s1, s2, s3, s4] = t.start.steps
+  const [s1, s2, s3, s4, s5] = t.start.steps
   const step = (n: number, s: { t: string; d: string }, body: ReactNode) => (
     <Reveal className="relative grid gap-4 pb-12 pl-12 last:pb-0 md:grid-cols-[minmax(0,1fr)_minmax(0,1.35fr)] md:gap-10">
       <span className="absolute top-0 left-0 grid size-8 place-items-center border border-rule-strong bg-background font-mono text-[12px] text-blueprint">
@@ -245,9 +245,10 @@ function QuickStart() {
           </Tabs>
         )}
         {step(2, s2, <CodeBlock lines={["ruask --update-pages", "ruask --update-pages --from ./tldr.zip"]} />)}
+        {step(3, s3, <CodeBlock lines={["ruask tar", "ruask git commit"]} />)}
         {step(
-          3,
-          s3,
+          4,
+          s4,
           <Tabs defaultValue="file">
             <TabsList variant="line">
               <TabsTrigger value="file">{t.start.cfgFile}</TabsTrigger>
@@ -269,7 +270,7 @@ function QuickStart() {
             </TabsContent>
           </Tabs>
         )}
-        {step(4, s4, <CodeBlock lines={lang === "zh" ? ["ruask tar", 'ruask git commit -q "如何修改上一次提交的信息"'] : ["ruask tar", 'ruask git commit -q "how do I edit the last commit message"']} />)}
+        {step(5, s5, <CodeBlock lines={lang === "zh" ? ['ruask "如何查找大于 100 MB 的文件"', 'ruask git commit -q "如何修改上一次提交的信息"'] : ['ruask "how do I list files larger than 100 MB"', 'ruask git commit -q "how do I edit the last commit message"']} />)}
       </div>
     </Section>
   )

@@ -47,7 +47,9 @@
 
 ## Quick start
 
-Runs on macOS and Linux (x86_64 / arm64). Install with whichever you prefer:
+Runs on macOS and Linux (x86_64 / arm64). Windows is not supported yet.
+
+**1. Install** with whichever you prefer:
 
 | Package manager | Command |
 | --- | --- |
@@ -58,14 +60,26 @@ Runs on macOS and Linux (x86_64 / arm64). Install with whichever you prefer:
 
 Prebuilt binaries are also on [GitHub Releases](https://github.com/KevinGuo1007/ruask/releases), each archive with a `.sha256` checksum. The install script puts `ruask` in `$XDG_BIN_HOME` or `~/.local/bin`.
 
-```sh
-ruask --update-pages      # optional, recommended: download and verify the official tldr pages
-ruask tar                 # local page, no configuration needed
+**2. Download the tldr pages and try it** (no API key needed):
 
+```sh
+ruask --update-pages      # download and verify the official tldr pages
+ruask tar                 # local page: no network, no model
+ruask git commit          # subcommands work too
+```
+
+Command lookups now work offline.
+
+**3. Configure a model and ask anything**:
+
+```sh
 ruask --init-config       # create a 0600 config template and print its path
 # fill in your model's base_url, api_key and model, then:
 ruask "find files larger than 100 MB"
+ruask git commit -q "how do I edit the last commit message"
 ```
+
+See [Configuration](#configuration) for every field and environment variable.
 
 <details>
 <summary>Build from a clone instead</summary>
@@ -171,8 +185,6 @@ cargo clippy --all-targets -- -D warnings
 ```
 
 Tests need no real API key. They start local HTTP stand-ins on random ports and, on macOS/Linux, a pseudo-terminal for color tests. The website lives in [`site/`](site/README.md) (Vite + React) and deploys to Vercel from `main`.
-
-Not yet on crates.io, Homebrew or as prebuilt binaries. Windows is out of scope for now.
 
 ## License
 
