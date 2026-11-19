@@ -54,7 +54,7 @@
 | Homebrew | `brew install KevinGuo1007/tap/ruask` |
 | 安装脚本 | `curl --proto '=https' --tlsv1.2 -LsSf https://github.com/KevinGuo1007/ruask/releases/latest/download/ruask-installer.sh \| sh` |
 | Cargo | `cargo install ruask --locked`（从源码编译，需要支持 Rust 2024 edition 的工具链）或 `cargo binstall ruask` |
-| npm | `npm install -g ruask` |
+| npm | `npm install -g @kevinguo1007/ruask` |
 
 也可以从 [GitHub Releases](https://github.com/KevinGuo1007/ruask/releases) 直接下载预编译二进制，每个压缩包都附有 `.sha256` 校验文件。安装脚本默认把 `ruask` 放到 `$XDG_BIN_HOME` 或 `~/.local/bin`。
 
