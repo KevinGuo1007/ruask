@@ -47,7 +47,9 @@
 
 ## 快速开始
 
-支持 macOS 和 Linux（x86_64 / arm64），任选一种方式安装：
+支持 macOS 和 Linux（x86_64 / arm64），暂不支持 Windows。
+
+**1. 安装**，任选一种方式：
 
 | 包管理器 | 命令 |
 | --- | --- |
@@ -58,14 +60,26 @@
 
 也可以从 [GitHub Releases](https://github.com/KevinGuo1007/ruask/releases) 直接下载预编译二进制，每个压缩包都附有 `.sha256` 校验文件。安装脚本默认把 `ruask` 放到 `$XDG_BIN_HOME` 或 `~/.local/bin`。
 
-```sh
-ruask --update-pages      # 可选但推荐：下载并校验官方 tldr 页面
-ruask tar                 # 本地页面直出，无需任何配置
+**2. 下载 tldr 页面，马上试一下**（不需要 API Key）：
 
+```sh
+ruask --update-pages      # 下载并校验官方 tldr 页面
+ruask tar                 # 本地页面直出：不联网、不调用模型
+ruask git commit          # 子命令同样可查
+```
+
+到这一步，只查命令名的用法已经可以离线使用。
+
+**3. 配置模型，提出任意问题**：
+
+```sh
 ruask --init-config       # 创建权限为 0600 的配置模板并显示路径
 # 填入模型服务的 base_url、api_key 和 model 后：
 ruask "如何查找大于 100 MB 的文件"
+ruask git commit -q "如何修改上一次提交信息"
 ```
+
+配置项与环境变量见[配置](#配置)。
 
 <details>
 <summary>从源码目录构建</summary>
@@ -171,8 +185,6 @@ cargo clippy --all-targets -- -D warnings
 ```
 
 测试不需要真实模型密钥，会在本机随机端口启动 HTTP 替身；macOS/Linux 上的颜色测试还会创建伪终端。官网源码在 [`site/`](site/README.md)（Vite + React），推送 `main` 后由 Vercel 自动部署。
-
-尚未发布到 crates.io，也没有 Homebrew 配方或预编译二进制；暂不支持 Windows。
 
 ## 许可证
 
