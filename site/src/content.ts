@@ -20,7 +20,7 @@ export const INSTALL_METHODS: { id: string; label: string; lines: string[] }[] =
     ],
   },
   { id: "cargo", label: "Cargo", lines: ["cargo install ruask --locked"] },
-  { id: "npm", label: "npm", lines: ["npm install -g ruask"] },
+  { id: "npm", label: "npm", lines: ["npm install -g @kevinguo1007/ruask"] },
 ]
 
 /* ---------- terminal demo scenes ----------

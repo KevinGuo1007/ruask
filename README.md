@@ -54,7 +54,7 @@ Runs on macOS and Linux (x86_64 / arm64). Install with whichever you prefer:
 | Homebrew | `brew install KevinGuo1007/tap/ruask` |
 | Install script | `curl --proto '=https' --tlsv1.2 -LsSf https://github.com/KevinGuo1007/ruask/releases/latest/download/ruask-installer.sh \| sh` |
 | Cargo | `cargo install ruask --locked` (builds from source; needs a Rust toolchain with 2024 edition support) or `cargo binstall ruask` |
-| npm | `npm install -g ruask` |
+| npm | `npm install -g @kevinguo1007/ruask` |
 
 Prebuilt binaries are also on [GitHub Releases](https://github.com/KevinGuo1007/ruask/releases), each archive with a `.sha256` checksum. The install script puts `ruask` in `$XDG_BIN_HOME` or `~/.local/bin`.
 

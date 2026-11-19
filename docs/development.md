@@ -80,7 +80,7 @@ cargo package --allow-dirty --locked --offline
 
 1. 为 `aarch64`/`x86_64` 的 `apple-darwin`、`unknown-linux-gnu`、`unknown-linux-musl` 六个目标编译（`[profile.dist]` 继承 `release`），生成 `.tar.xz` 压缩包、`.sha256` 校验文件、`ruask-installer.sh`、Homebrew formula 和 npm 包。
 2. 创建 GitHub Release，上传上述产物。
-3. 发布：formula 推送到 `KevinGuo1007/homebrew-tap`，npm 包发布为 `ruask`，`publish-crates.yml` 把同一 tag 的源码发布到 crates.io。tag 带 `-rc.1` 这类后缀时只建预发布 Release，跳过这三项。
+3. 发布：formula 推送到 `KevinGuo1007/homebrew-tap`，npm 包发布为 `@kevinguo1007/ruask`（无作用域的 `ruask` 被 npm 以与 `imask` 太像为由拒绝，见 `dist-workspace.toml` 的 `npm-scope`），`publish-crates.yml` 把同一 tag 的源码发布到 crates.io。tag 带 `-rc.1` 这类后缀时只建预发布 Release，跳过这三项。
 
 首次发布前需要在 GitHub 仓库的 Settings → Secrets and variables → Actions 中添加：
 
