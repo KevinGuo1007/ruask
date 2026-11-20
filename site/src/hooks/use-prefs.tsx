@@ -46,7 +46,7 @@ export function PrefsProvider({ children }: { children: React.ReactNode }) {
 
   React.useEffect(() => {
     document.documentElement.lang = lang === "zh" ? "zh-CN" : "en"
-    document.title = lang === "zh" ? "ruask — 在终端里速查命令" : "ruask — command lookup in your terminal"
+    document.title = lang === "zh" ? "ruask — Rust 编写的终端命令速查" : "ruask — a terminal command lookup, written in Rust"
   }, [lang])
 
   const value = React.useMemo<Prefs>(

@@ -7,9 +7,9 @@
   </picture>
 </a>
 
-<h3>Ask your terminal how to use a command.</h3>
+<h3>A terminal command lookup, written in Rust</h3>
 
-<p>Instant tldr pages for quick lookups. Streamed, reference-backed LLM answers for everything else.</p>
+<p>Commands in milliseconds. Answers grounded in docs.</p>
 
 <p>
   <a href="https://ruask.vercel.app"><img src="https://img.shields.io/website?url=https%3A%2F%2Fruask.vercel.app&label=website&up_message=ruask.vercel.app&down_message=offline&up_color=brightgreen&logo=vercel" alt="Website"></a>
