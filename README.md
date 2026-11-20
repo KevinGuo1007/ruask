@@ -34,6 +34,16 @@
 
 <br>
 
+## The problem it solves
+
+When you forget a command in the terminal, the usual move is to switch to a chat LLM in the browser or an agent app: leave the terminal, wait for the answer, then dig the one line you need out of a long reply. Confusing command output gets the same treatment: copy it, paste it over, ask again.
+
+ruask keeps all of that inside the terminal:
+
+- **Forgot a command**: `ruask tar` shows its usage in milliseconds. If you cannot name the command, just ask, for example `ruask "how do I find what is using port 8080"`.
+- **Confusing output**: pipe it in, for example `cat error.log | ruask cargo build -q "why did this fail"`. No copy-paste.
+- **Answers you can use**: numbered purposes with ready-to-copy commands, not paragraphs of explanation.
+
 ## Why ruask
 
 |  |  |
