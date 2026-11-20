@@ -184,7 +184,7 @@ ruask 不读取项目目录里的 `.env`，也不修改 shell 启动文件。流
 
 - [行为参考](docs/reference.md)：协议、流式、配置、输入输出约定的完整说明
 - [开发指南](docs/development.md) · [测试说明](docs/testing.md) · [性能说明](docs/performance.md)
-- [官网](https://ruask.vercel.app)，附 20 秒发布视频
+- [官网](https://ruask.vercel.app)，附发布视频
 
 ## 开发
 

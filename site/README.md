@@ -39,18 +39,20 @@ npm run preview    # 预览 dist/
 
 | 文件 | 说明 |
 | --- | --- |
-| `ruask-launch.{zh,en}.mp4` | 中文 / 英文成片，1920×1080，H.264，约 20s，优先加载；随页面语言切换 |
-| `ruask-launch.{zh,en}.webm` | 同一成片的 VP9 版本，备用源 |
-| `ruask-launch-poster.{zh,en}.jpg` | 封面帧（标题卡），1280×720 |
+| `ruask-launch.{zh,en}.mp4` | 中文 / 英文动画版成片，1920×1080，H.264 + AAC，zh 约 47s、en 约 48s，优先加载；随页面语言切换 |
+| `ruask-launch.{zh,en}.webm` | 同一成片的 VP9 + Opus 版本，备用源 |
+| `ruask-launch-poster.{zh,en}.jpg` | 封面帧（logo 与两行文案，取自 9.6s），1280×720 |
 | `ruask-demo.{en,zh}.gif` | 终端演示动图，分别由 `README.md` / `README.zh-CN.md` 引用 |
 
-视频静音循环；滚动到一半以上可见时自动播放，离开时暂停；手动暂停后不再自动播放；开启「减少动态效果」时不自动播放。
+视频带配乐和音效（素材均为 CC0），默认静音循环，观众可在播放控件里打开声音；滚动到一半以上可见时自动播放，离开时暂停；手动暂停后不再自动播放；开启「减少动态效果」时不自动播放。
 
-重新录制后替换上述文件，并重新生成封面帧：
+重新制作后替换上述文件（成片体积较大，先转码成网页用的版本），并重新生成封面帧：
 
 ```sh
 for l in zh en; do
-  ffmpeg -y -ss 1.2 -i public/assets/ruask-launch.$l.mp4 -frames:v 1 -vf scale=1280:-1 -q:v 4 public/assets/ruask-launch-poster.$l.jpg
+  ffmpeg -y -i SRC.$l.mp4 -c:v libx264 -preset slow -crf 24 -pix_fmt yuv420p -c:a aac -b:a 160k -movflags +faststart public/assets/ruask-launch.$l.mp4
+  ffmpeg -y -i SRC.$l.mp4 -c:v libvpx-vp9 -crf 34 -b:v 0 -c:a libopus -b:a 128k public/assets/ruask-launch.$l.webm
+  ffmpeg -y -ss 9.6 -i public/assets/ruask-launch.$l.mp4 -frames:v 1 -vf scale=1280:-1 -q:v 4 public/assets/ruask-launch-poster.$l.jpg
 done
 ```
 
