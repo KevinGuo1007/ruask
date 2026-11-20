@@ -7,9 +7,9 @@
   </picture>
 </a>
 
-<h3>在终端里问命令怎么用。</h3>
+<h3>Rust 编写的终端命令速查</h3>
 
-<p>简短命令毫秒级显示本地 tldr 页面；其他问题带着参考文档，流式询问你配置的模型。</p>
+<p>查命令毫秒直出，问模型有据可依。</p>
 
 <p>
   <a href="https://ruask.vercel.app"><img src="https://img.shields.io/website?url=https%3A%2F%2Fruask.vercel.app&label=website&up_message=ruask.vercel.app&down_message=offline&up_color=brightgreen&logo=vercel" alt="Website"></a>

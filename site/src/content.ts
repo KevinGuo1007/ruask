@@ -172,8 +172,8 @@ export const copy = {
     skip: "跳到正文",
     hero: {
       kicker: "v0.1 · Rust CLI · macOS / Linux",
-      title1: "忘了命令怎么写？",
-      title2: "在终端里问一句。",
+      title1: "Rust\u00a0编写的\u200b终端命令速查",
+      title2: "查命令毫秒直出，问模型有据可依。",
       lead: "ruask 先查本机的 tldr 页面，命中就毫秒级直出；查不到或带着问题时，再把相关页面作为参考交给你配置的模型，流式逐行回答。也能把报错日志用管道交给它解读。",
       install: "安装",
       installHint: "也可以用安装脚本、cargo 或 npm 安装，见快速开始。支持 macOS 与 Linux。",
@@ -281,8 +281,8 @@ export const copy = {
     skip: "Skip to content",
     hero: {
       kicker: "v0.1 · Rust CLI · macOS / Linux",
-      title1: "Forgot the flags?",
-      title2: "Just ask your terminal.",
+      title1: "A terminal command lookup, written in Rust",
+      title2: "Commands in milliseconds. Answers grounded in docs.",
       lead: "ruask checks your local tldr pages first and prints a hit in milliseconds. Otherwise it hands the relevant pages to your model as reference and streams a short answer. Pipe in an error log and it explains what went wrong.",
       install: "Install",
       installHint: "Or use the install script, cargo or npm — see Quick start. macOS and Linux.",
