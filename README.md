@@ -184,7 +184,7 @@ ruask never reads `.env` files from your project and never edits shell startup f
 
 - [Behavior reference](docs/reference.md): protocols, streaming, configuration, input and output rules (Chinese)
 - [Development guide](docs/development.md) · [Testing](docs/testing.md) · [Performance notes](docs/performance.md)
-- [Website](https://ruask.vercel.app), with a 20-second launch video
+- [Website](https://ruask.vercel.app), with a launch video
 
 ## Development
 

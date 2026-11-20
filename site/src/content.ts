@@ -189,8 +189,8 @@ export const copy = {
     ],
     video: {
       kicker: "演示",
-      title: "20 秒看懂 ruask",
-      caption: "命令速查、自然语言提问、管道解读报错。终端由 VHS 录制。",
+      title: "一分钟看懂 ruask",
+      caption: "从离开终端去问 AI 的麻烦讲起，到命令速查、自然语言提问、管道解读输出。有配乐，默认静音。",
     },
     how: {
       kicker: "原理",
@@ -298,8 +298,8 @@ export const copy = {
     ],
     video: {
       kicker: "Demo",
-      title: "ruask in 20 seconds",
-      caption: "Command lookup, plain-language questions, piped error explanation. Recorded with VHS.",
+      title: "ruask in under a minute",
+      caption: "From the detour of leaving your terminal to ask an AI, to command lookup, plain-language questions and piped output explained. Has music, muted by default.",
     },
     how: {
       kicker: "How it works",
